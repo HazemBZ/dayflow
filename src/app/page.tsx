@@ -84,17 +84,18 @@ export default function DashboardPage() {
   const isTodayView = isToday(currentDate);
   const canGoNext = !isTodayView;
 
-  const [viewMode, setViewMode] = useState<"basic" | "full">("full");
+  const [viewMode, setViewMode] = useState<"basic" | "full">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      if (saved === "basic" || saved === "full") return saved;
+    }
+    return "full";
+  });
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [skillSessions, setSkillSessions] = useState<SkillSessionRow[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLogRow[]>([]);
   const [activities, setActivities] = useState<{ id: number; name: string; icon: string }[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    if (saved === "basic" || saved === "full") setViewMode(saved);
-  }, []);
 
   const loadData = useCallback(async () => {
     try {
