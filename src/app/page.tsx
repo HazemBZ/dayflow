@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useSyncExternalStore } from "react";
 import { format, addDays, isPast, isToday, startOfDay, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { Header } from "@/components/dashboard/header";
@@ -26,8 +26,7 @@ import {
   addDeepWorkActivity,
 } from "@/lib/actions/deep-work";
 import { reorderOutcomes } from "@/lib/actions/daily";
-
-const VIEW_MODE_STORAGE_KEY = "sidebar-view-mode";
+import { viewModeStore } from "@/lib/view-mode-store";
 
 interface DailyLog {
   id?: number;
@@ -84,13 +83,11 @@ export default function DashboardPage() {
   const isTodayView = isToday(currentDate);
   const canGoNext = !isTodayView;
 
-  const [viewMode, setViewMode] = useState<"basic" | "full">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-      if (saved === "basic" || saved === "full") return saved;
-    }
-    return "full";
-  });
+  const viewMode = useSyncExternalStore(
+    viewModeStore.subscribe,
+    viewModeStore.getSnapshot,
+    viewModeStore.getServerSnapshot,
+  );
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [skillSessions, setSkillSessions] = useState<SkillSessionRow[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLogRow[]>([]);

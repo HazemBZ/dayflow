@@ -18,10 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@/lib/theme/theme-provider";
 import { THEMES, type ThemeClass } from "@/lib/theme/theme-config";
 import { FONT_OPTIONS, type FontId } from "@/lib/fonts/font-config";
+import { viewModeStore } from "@/lib/view-mode-store";
 
 const NAV_ITEMS = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -42,23 +43,17 @@ const VIEW_MODES: { id: ViewMode; label: string }[] = [
 
 const SIMPLE_MODE_HREFS = ["/", "/history"];
 
-const VIEW_MODE_STORAGE_KEY = "sidebar-view-mode";
-
 function SidebarContent() {
   const pathname = usePathname();
   const { theme: activeTheme, setTheme, font: activeFont, setFont } = useTheme();
-  const [viewMode, setViewMode] = useState<ViewMode>("full");
+  const viewMode = useSyncExternalStore(
+    viewModeStore.subscribe,
+    viewModeStore.getSnapshot,
+    viewModeStore.getServerSnapshot,
+  );
 
-  useEffect(() => {
-    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    if (saved === "simple" || saved === "full") {
-      setViewMode(saved);
-    }
-  }, []);
-
-  const setViewModeAndPersist = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+  const setViewMode = (mode: ViewMode) => {
+    viewModeStore.set(mode);
   };
 
   const visibleItems = viewMode === "simple"
@@ -105,7 +100,7 @@ function SidebarContent() {
             return (
               <button
                 key={mode.id}
-                onClick={() => setViewModeAndPersist(mode.id)}
+                onClick={() => setViewMode(mode.id)}
                 className={cn(
                   "flex-1 rounded-md px-2 py-1 text-xs transition-all",
                   active
