@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useState, useSyncExternalStore } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/lib/theme/theme-provider";
 import { THEMES, type ThemeClass } from "@/lib/theme/theme-config";
 import { FONT_OPTIONS, type FontId } from "@/lib/fonts/font-config";
@@ -42,6 +43,21 @@ const VIEW_MODES: { id: ViewMode; label: string }[] = [
 ];
 
 const SIMPLE_MODE_HREFS = ["/", "/history"];
+
+const itemVariants = {
+  enter: {
+    opacity: 1,
+    y: 0,
+    scaleY: 1,
+    transition: { type: "spring", stiffness: 350, damping: 35, mass: 0.8 },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    scaleY: 0,
+    transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
+  },
+};
 
 function SidebarContent() {
   const pathname = usePathname();
@@ -67,25 +83,45 @@ function SidebarContent() {
         <p className="text-xs text-muted-foreground">Planning System</p>
       </div>
       <nav className="flex flex-col gap-1 px-2">
-        {visibleItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.title}
-            </Link>
-          );
-        })}
+        <AnimatePresence mode="popLayout">
+          {visibleItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <motion.div
+                key={item.href}
+                variants={itemVariants}
+                initial="exit"
+                animate="enter"
+                exit="exit"
+                layout
+                style={{ originY: 0 }}
+              >
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-nav"
+                      className="absolute inset-0 rounded-lg bg-primary"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-3">
+                    <Icon className="h-4 w-4" />
+                    {item.title}
+                  </span>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </nav>
 
       {/* View mode toggle */}
