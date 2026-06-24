@@ -29,7 +29,7 @@ hydrate();
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
     if (e.key !== STORAGE_KEY) return;
-    if (e.newValue === "basic" || e.newValue === "full") {
+    if (e.newValue === "simple" || e.newValue === "full") {
       _mode = e.newValue;
       notify();
     }
