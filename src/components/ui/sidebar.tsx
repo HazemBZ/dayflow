@@ -138,12 +138,15 @@ function SidebarContent() {
               >
                 <Link
                   href={item.href}
-                  className={cn(
-                    "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
+                    className={cn(
+                      "relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+                      viewMode === "simple"
+                        ? "justify-center px-2"
+                        : "gap-3 px-3",
+                      isActive
+                        ? "text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
                 >
                   {isActive && (
                     <motion.div
@@ -209,7 +212,7 @@ function SidebarContent() {
                     onClick={() => setFont(f.id as FontId)}
                     title={`${f.name} — ${f.description}`}
                     className={cn(
-                      "rounded-md px-2 py-1 text-xs transition-all",
+                      "rounded-md px-2 py-1 text-xs transition-all whitespace-nowrap",
                       active
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -246,7 +249,7 @@ function SidebarContent() {
 
       {viewMode === "full" && (
         <div className="mt-auto px-4">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground whitespace-nowrap">
             Daily → Weekly → Monthly → Quarterly
           </p>
         </div>
