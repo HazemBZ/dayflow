@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useTheme } from "@/lib/theme/theme-provider";
 import { THEMES, type ThemeClass } from "@/lib/theme/theme-config";
 import { FONT_OPTIONS, type FontId } from "@/lib/fonts/font-config";
