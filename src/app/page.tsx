@@ -27,6 +27,8 @@ import {
 } from "@/lib/actions/deep-work";
 import { reorderOutcomes } from "@/lib/actions/daily";
 
+const VIEW_MODE_STORAGE_KEY = "sidebar-view-mode";
+
 interface DailyLog {
   id?: number;
   date: string;
@@ -82,11 +84,17 @@ export default function DashboardPage() {
   const isTodayView = isToday(currentDate);
   const canGoNext = !isTodayView;
 
+  const [viewMode, setViewMode] = useState<"basic" | "full">("full");
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [skillSessions, setSkillSessions] = useState<SkillSessionRow[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLogRow[]>([]);
   const [activities, setActivities] = useState<{ id: number; name: string; icon: string }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    if (saved === "basic" || saved === "full") setViewMode(saved);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -259,13 +267,15 @@ export default function DashboardPage() {
         onAddActivity={handleAddActivity}
       />
 
-      <EveningBlock
-        initialValue={dailyLog?.eveningTaskType ?? null}
-        initialCompleted={dailyLog?.eveningCompleted === true}
-        onSave={handleEveningSave}
-      />
+      {viewMode === "full" && (
+        <EveningBlock
+          initialValue={dailyLog?.eveningTaskType ?? null}
+          initialCompleted={dailyLog?.eveningCompleted === true}
+          onSave={handleEveningSave}
+        />
+      )}
 
-      <ProtectionGate onLog={handleProtectionLog} />
+      {viewMode === "full" && <ProtectionGate onLog={handleProtectionLog} />}
 
       <TimeSummary timeLogs={timeLogs} />
     </PageScroll>
