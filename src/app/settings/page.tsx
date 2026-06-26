@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { PageScroll } from "@/components/ui/page-scroll";
 import {
@@ -25,6 +25,7 @@ import {
   toggleFieldConfig,
 } from "@/lib/actions/field-config";
 import type { FieldConfigRow } from "@/lib/actions/field-config";
+import { scaleStore, SCALE_PRESETS } from "@/lib/scale-store";
 
 type DeepWorkItem = Awaited<ReturnType<typeof getDeepWorkActivities>>[number];
 
@@ -66,6 +67,7 @@ export default function SettingsPage() {
         maxWidth="max-w-3xl"
         scrollContentClass="space-y-6 pt-6"
       >
+        <ScaleSection />
         <DeepWorkSection showFeedback={showFeedback} />
         <FieldConfigSection
           title="Weekly Targets"
@@ -79,6 +81,48 @@ export default function SettingsPage() {
         />
       </PageScroll>
     </>
+  );
+}
+
+// ─── Section 0: UI Scale ─────────────────────────────────────────────────
+function ScaleSection() {
+  const currentScale = useSyncExternalStore(
+    scaleStore.subscribe,
+    scaleStore.getSnapshot,
+    scaleStore.getServerSnapshot,
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>UI Scale</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Adjust interface size for your display. Scales all UI elements
+          uniformly — useful for high-resolution or larger displays.
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {(SCALE_PRESETS as readonly number[]).map((s) => {
+            const active = currentScale === s;
+            const label = s === 1 ? "100%" : `${Math.round(s * 100)}%`;
+            return (
+              <button
+                key={s}
+                onClick={() => scaleStore.set(s as typeof currentScale)}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

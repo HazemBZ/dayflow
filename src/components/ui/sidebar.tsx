@@ -14,6 +14,8 @@ import {
   X,
   Palette,
   Eye,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -24,6 +26,7 @@ import { useTheme } from "@/lib/theme/theme-provider";
 import { THEMES, type ThemeClass } from "@/lib/theme/theme-config";
 import { FONT_OPTIONS, type FontId } from "@/lib/fonts/font-config";
 import { viewModeStore } from "@/lib/view-mode-store";
+import { scaleStore, SCALE_PRESETS } from "@/lib/scale-store";
 
 const NAV_ITEMS = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -66,6 +69,11 @@ function SidebarContent() {
     viewModeStore.subscribe,
     viewModeStore.getSnapshot,
     viewModeStore.getServerSnapshot,
+  );
+  const currentScale = useSyncExternalStore(
+    scaleStore.subscribe,
+    scaleStore.getSnapshot,
+    scaleStore.getServerSnapshot,
   );
 
   const setViewMode = (mode: ViewMode) => {
@@ -243,6 +251,36 @@ function SidebarContent() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === "full" && (
+        /* Scale / Zoom control */
+        <div className="mt-3 px-4">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <ZoomIn className="h-3 w-3" />
+            Zoom
+          </div>
+          <div className="flex gap-1 flex-wrap">
+            {(SCALE_PRESETS as readonly number[]).map((s) => {
+              const active = currentScale === s;
+              const label = s === 1 ? "100%" : `${Math.round(s * 100)}%`;
+              return (
+                <button
+                  key={s}
+                  onClick={() => scaleStore.set(s as typeof currentScale)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-xs transition-all whitespace-nowrap",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

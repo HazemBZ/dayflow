@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import {
   Card,
@@ -58,6 +58,16 @@ function totalDeepWorkHours(days: DaySummary[]): number {
 export default function HistoryPage() {
   const [days, setDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
+
+  const toggleSession = useCallback((id: number) => {
+    setExpandedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     getAllPastDays()
@@ -285,11 +295,37 @@ export default function HistoryPage() {
                     )}
                     {day.skillSessions.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1.5">
-                        {day.skillSessions.map((s) => (
-                          <Badge key={s.id} variant="secondary" className="text-[11px]">
-                            {s.skill.replace(/_/g, " ")} · {s.durationMinutes}m
-                          </Badge>
-                        ))}
+                        {day.skillSessions.map((s) => {
+                          const isExpanded = expandedSessions.has(s.id);
+                          const hasNotes = !!s.notes;
+                          return (
+                            <div key={s.id} className="group">
+                              <Badge
+                                variant="secondary"
+                                className={`text-[11px] ${hasNotes ? "cursor-pointer" : ""}`}
+                                onClick={hasNotes ? () => toggleSession(s.id) : undefined}
+                              >
+                                {s.skill.replace(/_/g, " ")} · {s.durationMinutes}m
+                                {hasNotes && (
+                                  <span className="ml-1 text-[10px] text-muted-foreground">
+                                    {isExpanded ? "▲" : "▼"}
+                                  </span>
+                                )}
+                              </Badge>
+                              {hasNotes && (
+                                <div
+                                  className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                                    isExpanded ? "max-h-40 mt-2" : "max-h-0"
+                                  }`}
+                                >
+                                  <p className="ml-4 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed border-l-2 border-muted pl-3">
+                                    {s.notes}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                         <span className="self-center text-xs text-muted-foreground">
                           {totalMins >= 60
                             ? `${Math.floor(totalMins / 60)}h ${totalMins % 60}m`

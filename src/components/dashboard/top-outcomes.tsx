@@ -35,8 +35,6 @@ interface TopOutcomesProps {
   onReorder: (items: { text: string; completed: boolean }[]) => Promise<void>;
 }
 
-const SORTABLE_IDS = ["outcome-0", "outcome-1", "outcome-2"] as const;
-
 function SortableCard({
   id,
   index,
@@ -84,7 +82,6 @@ function SortableCard({
       style={style}
       size="sm"
       className={cn(
-        "transition-[opacity,box-shadow]",
         isDragging && "z-10 opacity-50 ring-2 ring-amber-500",
       )}
     >
@@ -163,6 +160,7 @@ export function TopOutcomes({
     false,
   ]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [itemIds, setItemIds] = useState<string[]>(["outcome-0", "outcome-1", "outcome-2"]);
   const labels = ["First", "Second", "Third"];
 
   const sensors = useSensors(
@@ -245,24 +243,26 @@ export function TopOutcomes({
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
-      const oldIndex = SORTABLE_IDS.indexOf(active.id as typeof SORTABLE_IDS[number]);
-      const newIndex = SORTABLE_IDS.indexOf(over.id as typeof SORTABLE_IDS[number]);
+      const oldIndex = itemIds.indexOf(active.id as string);
+      const newIndex = itemIds.indexOf(over.id as string);
 
       const newValues = arrayMove([...values], oldIndex, newIndex) as [string, string, string];
       const newDirty = arrayMove([...dirty], oldIndex, newIndex) as [boolean, boolean, boolean];
       const newSaving = arrayMove([...saving], oldIndex, newIndex) as [boolean, boolean, boolean];
       const newCompleted = arrayMove([...completed], oldIndex, newIndex) as [boolean, boolean, boolean];
+      const newItemIds = arrayMove([...itemIds], oldIndex, newIndex);
 
       setValues(newValues);
       setCompletedState(newCompleted);
       setDirty(newDirty);
       setSaving(newSaving);
+      setItemIds(newItemIds);
 
       onReorder(
         newValues.map((text, i) => ({ text, completed: newCompleted[i] })),
       );
     },
-    [values, dirty, saving, completed, onReorder],
+    [values, dirty, saving, completed, itemIds, onReorder],
   );
 
   const handleDragCancel = useCallback(() => {
@@ -298,14 +298,14 @@ export function TopOutcomes({
         onDragCancel={handleDragCancel}
       >
         <SortableContext
-          items={[...SORTABLE_IDS]}
+          items={itemIds}
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col gap-2">
-            {([0, 1, 2] as const).map((i) => (
+            {itemIds.map((id, i) => (
               <SortableCard
-                key={SORTABLE_IDS[i]}
-                id={SORTABLE_IDS[i]}
+                key={id}
+                id={id}
                 index={i}
                 value={values[i]}
                 done={completedState[i]}

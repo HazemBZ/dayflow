@@ -10,6 +10,7 @@ import {
 import { Sidebar } from "@/components/ui/sidebar";
 import { LiveClock } from "@/components/ui/live-clock";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
+import { ScaleProvider } from "@/lib/scale-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -60,6 +61,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <ThemeProvider>
+          <ScaleProvider>
           <div className="flex h-screen">
             <Sidebar />
             <div className="fixed right-4 top-1 z-50">
@@ -69,6 +71,7 @@ export default function RootLayout({
               {children}
             </main>
           </div>
+          </ScaleProvider>
         </ThemeProvider>
       </body>
     </html>
