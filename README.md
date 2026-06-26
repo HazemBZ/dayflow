@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dayflow
+
+A personal planning system — daily, weekly, and strategic.
+
+Track your 3 key outcomes each day, log deep work sessions, review evenings, keep score, and zoom out to the big picture. Built for clarity, not complexity.
+
+## Features
+
+- **Daily Dashboard** — Set 3 outcomes per day, drag to reorder, mark complete. Log deep work sessions with time tracking. Evening review and "protection gate" (record what you said no to).
+- **Weekly View** — See your week at a glance, track time across categories.
+- **Horizon** — Monthly & quarterly planning. Strategic alignment beyond the day.
+- **Scorecard** — Visual metrics and trends. Charts for outcomes, deep work, skill sessions, and time allocation.
+- **Budget** — Track spending against your plan.
+- **History** — Browse past entries.
+- **Settings** — Themes, fonts, view modes (basic/full), app-wide scaling.
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 16 (React 19) |
+| Styling | Tailwind CSS v4 |
+| UI | shadcn/ui + Base UI + Framer Motion |
+| Database | SQLite via libSQL (Turso-compatible) |
+| ORM | Drizzle with drizzle-kit migrations |
+| Package Manager | pnpm |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- pnpm
+
+### Install & Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Database Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Generate migrations from schema
+pnpm db:generate
 
-## Learn More
+# Push schema to SQLite
+pnpm db:push
 
-To learn more about Next.js, take a look at the following resources:
+# Open Drizzle Studio (GUI)
+pnpm db:studio
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The app uses a local SQLite file (`data.db`). No external database required.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Docker
 
-## Deploy on Vercel
+```bash
+docker compose up -d
+# Runs on port 3001
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/          # Next.js App Router pages
+│   ├── budget/
+│   ├── history/
+│   ├── horizon/
+│   ├── scorecard/
+│   ├── settings/
+│   └── weekly/
+├── components/   # React components
+│   ├── dashboard/
+│   └── ui/
+└── lib/          # Actions, DB, stores, utilities
+```
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Start production server |
+| `pnpm lint` | Run ESLint |
+| `pnpm db:push` | Push schema to DB |
+| `pnpm db:studio` | Open Drizzle Studio |
+| `pnpm db:migrate` | Run migrations |
