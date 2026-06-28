@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore, useState, useRef, useEffect, useMemo } from "react";
+import { useSyncExternalStore, useState, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
 import { notesStore, type Note } from "@/lib/notes-store";
 import { viewModeStore } from "@/lib/view-mode-store";
 import { Button } from "@/components/ui/button";
@@ -96,10 +97,6 @@ export function NotesPopover() {
     viewModeStore.getServerSnapshot,
   );
   const sidebarWidth = viewMode === "simple" ? 64 : 224;
-  const triggerStyle = useMemo<React.CSSProperties>(
-    () => ({ left: `calc(50% + ${sidebarWidth / 2}px)` }),
-    [sidebarWidth],
-  );
 
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -156,21 +153,25 @@ export function NotesPopover() {
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          data-slot="notes-popover-trigger"
-          style={triggerStyle}
-          className={cn(
-            "fixed top-2 z-50 -translate-x-1/2",
-            "flex size-7 items-center justify-center rounded-full",
-            "bg-primary text-primary-foreground shadow-xs",
-            "transition-all hover:bg-primary/90 hover:shadow-sm",
-            "data-open:bg-primary/90 data-open:shadow-sm",
-            "cursor-pointer",
-          )}
-          aria-label="Quick notes"
+        <motion.div
+          className="fixed top-2 z-50"
+          animate={{ right: `calc(13% + ${(224 - sidebarWidth) / 2}px)` }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
         >
-          <StickyNote className="size-3.5" />
-        </PopoverTrigger>
+          <PopoverTrigger
+            data-slot="notes-popover-trigger"
+            className={cn(
+              "flex size-7 items-center justify-center rounded-full",
+              "bg-primary text-primary-foreground shadow-xs",
+              "transition-all duration-300 ease-in-out hover:bg-primary/90 hover:shadow-sm",
+              "data-open:bg-primary/90 data-open:shadow-sm",
+              "cursor-pointer",
+            )}
+            aria-label="Quick notes"
+          >
+            <StickyNote className="size-3.5" />
+          </PopoverTrigger>
+        </motion.div>
         <PopoverContent
           side="bottom"
           align="center"
