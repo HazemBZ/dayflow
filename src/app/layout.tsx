@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/ui/sidebar";
 import { LiveClock } from "@/components/ui/live-clock";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
 import { ScaleProvider } from "@/lib/scale-provider";
+import { NotesPopover } from "@/components/ui/notes-popover";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -67,6 +68,7 @@ export default function RootLayout({
             <div className="fixed right-4 top-1 z-50">
               <LiveClock />
             </div>
+            <NotesPopover />
             <main className="flex-1 h-full overflow-auto p-4 md:p-6 lg:p-8">
               {children}
             </main>
