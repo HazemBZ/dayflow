@@ -1,7 +1,8 @@
 "use client";
 
-import { useSyncExternalStore, useState, useRef, useEffect } from "react";
+import { useSyncExternalStore, useState, useRef, useEffect, useMemo } from "react";
 import { notesStore, type Note } from "@/lib/notes-store";
+import { viewModeStore } from "@/lib/view-mode-store";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { StickyNote, Plus, Trash2, X } from "lucide-react";
+import { StickyNote, Plus, X } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -89,6 +90,17 @@ export function NotesPopover() {
     notesStore.getServerSnapshot,
   );
 
+  const viewMode = useSyncExternalStore(
+    viewModeStore.subscribe,
+    viewModeStore.getSnapshot,
+    viewModeStore.getServerSnapshot,
+  );
+  const sidebarWidth = viewMode === "simple" ? 64 : 224;
+  const triggerStyle = useMemo<React.CSSProperties>(
+    () => ({ left: `calc(50% + ${sidebarWidth / 2}px)` }),
+    [sidebarWidth],
+  );
+
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editNote, setEditNote] = useState<Note | null>(null);
@@ -146,8 +158,9 @@ export function NotesPopover() {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           data-slot="notes-popover-trigger"
+          style={triggerStyle}
           className={cn(
-            "fixed left-1/2 top-2 z-50 -translate-x-1/2",
+            "fixed top-2 z-50 -translate-x-1/2",
             "flex size-7 items-center justify-center rounded-full",
             "bg-primary text-primary-foreground shadow-xs",
             "transition-all hover:bg-primary/90 hover:shadow-sm",

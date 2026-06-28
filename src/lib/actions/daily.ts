@@ -91,6 +91,25 @@ export async function logSkillSession(params: {
   return { success: true };
 }
 
+export async function updateSkillSession(
+  id: number,
+  data: { skill?: string; durationMinutes?: number; notes?: string | null },
+) {
+  await db.update(skillSessions).set(data).where(eq(skillSessions.id, id));
+  revalidatePath("/");
+  revalidatePath("/weekly");
+  revalidatePath("/history");
+  return { success: true };
+}
+
+export async function deleteSkillSession(id: number) {
+  await db.delete(skillSessions).where(eq(skillSessions.id, id));
+  revalidatePath("/");
+  revalidatePath("/weekly");
+  revalidatePath("/history");
+  return { success: true };
+}
+
 export async function getSkillSessionsForDate(date: string) {
   return await db
     .select()

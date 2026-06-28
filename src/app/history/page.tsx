@@ -11,8 +11,23 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PageScroll } from "@/components/ui/page-scroll";
 import { getAllPastDays, type DaySummary } from "@/lib/actions/history";
+import {
+  updateSkillSession,
+  deleteSkillSession,
+} from "@/lib/actions/daily";
+import { Pencil, Trash2 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,6 +74,47 @@ export default function HistoryPage() {
   const [days, setDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
+  const [editingSession, setEditingSession] = useState<{
+    id: number;
+    skill: string;
+    durationMinutes: number;
+    notes: string;
+  } | null>(null);
+  const [editDraft, setEditDraft] = useState({ skill: "", durationMinutes: 0, notes: "" });
+  const [deletingSession, setDeletingSession] = useState<{ id: number; skill: string } | null>(null);
+
+  const openEdit = useCallback(
+    (s: { id: number; skill: string; durationMinutes: number; notes: string | null }) => {
+      setEditingSession({ id: s.id, skill: s.skill, durationMinutes: s.durationMinutes, notes: s.notes ?? "" });
+      setEditDraft({ skill: s.skill, durationMinutes: s.durationMinutes, notes: s.notes ?? "" });
+    },
+    [],
+  );
+
+  const closeEdit = useCallback(() => {
+    setEditingSession(null);
+    setEditDraft({ skill: "", durationMinutes: 0, notes: "" });
+  }, []);
+
+  const handleEditSave = useCallback(async () => {
+    if (!editingSession) return;
+    await updateSkillSession(editingSession.id, {
+      skill: editDraft.skill,
+      durationMinutes: editDraft.durationMinutes,
+      notes: editDraft.notes || null,
+    });
+    closeEdit();
+    const days = await getAllPastDays();
+    setDays(days);
+  }, [editingSession, editDraft, closeEdit]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deletingSession) return;
+    await deleteSkillSession(deletingSession.id);
+    setDeletingSession(null);
+    const days = await getAllPastDays();
+    setDays(days);
+  }, [deletingSession]);
 
   const toggleSession = useCallback((id: number) => {
     setExpandedSessions((prev) => {
@@ -294,31 +350,60 @@ export default function HistoryPage() {
                       </p>
                     )}
                     {day.skillSessions.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1.5">
+                      <div className="mt-1 space-y-1">
                         {day.skillSessions.map((s) => {
                           const isExpanded = expandedSessions.has(s.id);
                           const hasNotes = !!s.notes;
                           return (
-                            <div key={s.id} className="group">
-                              <Badge
-                                variant="secondary"
-                                className={`text-[11px] ${hasNotes ? "cursor-pointer" : ""}`}
-                                onClick={hasNotes ? () => toggleSession(s.id) : undefined}
-                              >
-                                {s.skill.replace(/_/g, " ")} · {s.durationMinutes}m
-                                {hasNotes && (
-                                  <span className="ml-1 text-[10px] text-muted-foreground">
+                            <div key={s.id}>
+                              <div className="group flex items-center gap-2 rounded-md px-2.5 py-1 text-sm transition-colors hover:bg-muted/50">
+                                <span
+                                  className={`flex-1 font-medium capitalize ${hasNotes ? "cursor-pointer" : ""}`}
+                                  onClick={hasNotes ? () => toggleSession(s.id) : undefined}
+                                >
+                                  {s.skill.replace(/_/g, " ")}
+                                </span>
+                                <span className="tabular-nums text-muted-foreground">
+                                  {s.durationMinutes}m
+                                </span>
+                                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-6"
+                                    onClick={() =>
+                                      openEdit(s)
+                                    }
+                                  >
+                                    <Pencil className="size-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-6 text-destructive hover:text-destructive"
+                                    onClick={() =>
+                                      setDeletingSession({ id: s.id, skill: s.skill })
+                                    }
+                                  >
+                                    <Trash2 className="size-3" />
+                                  </Button>
+                                </div>
+                                {s.notes && (
+                                  <span
+                                    className="text-[10px] text-muted-foreground cursor-pointer"
+                                    onClick={() => toggleSession(s.id)}
+                                  >
                                     {isExpanded ? "▲" : "▼"}
                                   </span>
                                 )}
-                              </Badge>
+                              </div>
                               {hasNotes && (
                                 <div
                                   className={`overflow-hidden transition-all duration-200 ease-in-out ${
-                                    isExpanded ? "max-h-40 mt-2" : "max-h-0"
+                                    isExpanded ? "max-h-40" : "max-h-0"
                                   }`}
                                 >
-                                  <p className="ml-4 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed border-l-2 border-muted pl-3">
+                                  <p className="ml-4 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed border-l-2 border-muted pl-3 pt-1">
                                     {s.notes}
                                   </p>
                                 </div>
@@ -326,12 +411,12 @@ export default function HistoryPage() {
                             </div>
                           );
                         })}
-                        <span className="self-center text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground px-2.5">
                           {totalMins >= 60
                             ? `${Math.floor(totalMins / 60)}h ${totalMins % 60}m`
                             : `${totalMins}m`}{" "}
                           total
-                        </span>
+                        </p>
                       </div>
                     )}
                   </div>
@@ -425,6 +510,88 @@ export default function HistoryPage() {
           );
         })}
       </div>
+      {/* ── Delete confirmation ──────────────────────────── */}
+      <Dialog
+        open={!!deletingSession}
+        onOpenChange={(o) => !o && setDeletingSession(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Activity</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete{" "}
+            <span className="font-medium text-foreground capitalize">
+              {deletingSession?.skill.replace(/_/g, " ")}
+            </span>
+            ? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingSession(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit dialog ──────────────────────────────────── */}
+      <Dialog open={!!editingSession} onOpenChange={(o) => !o && closeEdit()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Activity</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Activity
+              </label>
+              <Input
+                value={editDraft.skill}
+                onChange={(e) =>
+                  setEditDraft((p) => ({ ...p, skill: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Duration (minutes)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                value={editDraft.durationMinutes}
+                onChange={(e) =>
+                  setEditDraft((p) => ({
+                    ...p,
+                    durationMinutes: Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Notes
+              </label>
+              <Textarea
+                rows={3}
+                value={editDraft.notes}
+                onChange={(e) =>
+                  setEditDraft((p) => ({ ...p, notes: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditSave}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageScroll>
   );
 }
