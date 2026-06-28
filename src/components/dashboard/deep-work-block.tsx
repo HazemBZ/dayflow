@@ -51,6 +51,7 @@ interface DeepWorkBlockProps {
     notes?: string;
   }) => Promise<void>;
   onAddActivity: (name: string) => Promise<void>;
+  viewMode?: "simple" | "full";
 }
 
 const ADD_NEW_VALUE = "__add_new__";
@@ -72,6 +73,7 @@ export function DeepWorkBlock({
   sessions,
   onLogSession,
   onAddActivity,
+  viewMode = "full",
 }: DeepWorkBlockProps) {
   const { elapsed, running, activity: currentTimerActivity } = useSyncExternalStore(
     timerStore.subscribe,
@@ -158,6 +160,24 @@ export function DeepWorkBlock({
 
   // ── Empty state: no activities ───────────────────────────────────────
   if (activities.length === 0) {
+    if (viewMode === "simple") {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <BookOpen className="h-4 w-4" />
+            Deep Work Block
+            <span className="ml-auto font-mono text-xs tabular-nums tracking-tight opacity-60">
+              {formatElapsed(elapsed)}
+            </span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Add Activity
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <Card className="border-dashed">
         <CardHeader>
@@ -196,6 +216,84 @@ export function DeepWorkBlock({
 
   // ── No activity selected ──────────────────────────────────────────────
   if (!selectedActivity || !currentActivity) {
+    if (viewMode === "simple") {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <BookOpen className="h-4 w-4" />
+            Deep Work Block
+            <span className="ml-auto font-mono text-xs tabular-nums tracking-tight text-muted-foreground/60">
+              {formatElapsed(elapsed)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value="" onValueChange={handleSelectChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose activity" />
+              </SelectTrigger>
+              <SelectContent>
+                {activities.map((a) => (
+                  <SelectItem key={a.id} value={a.name}>
+                    <div className="flex items-center gap-2">
+                      <ActivityIcon icon={a.icon} className="h-3.5 w-3.5" />
+                      {a.name}
+                    </div>
+                  </SelectItem>
+                ))}
+                <SelectItem value={ADD_NEW_VALUE}>
+                  <div className="flex items-center gap-2 text-primary">
+                    <Plus className="h-3.5 w-3.5" />
+                    Add New Activity
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Timer — always visible, disabled until activity selected */}
+          <div className="flex items-center gap-3">
+            <div className="font-mono text-3xl tabular-nums tracking-tight text-muted-foreground">
+              {formatElapsed(elapsed)}
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              disabled
+              className="gap-1.5"
+            >
+              <Play className="h-3.5 w-3.5" />
+              Start
+            </Button>
+          </div>
+
+          {/* Show today's sessions even without selected activity */}
+          {sessions.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Today&apos;s sessions ({totalMinutesToday}m total)
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sessions.map((s) => (
+                    <Badge key={s.id} variant="secondary" className="gap-1">
+                      <Timer className="h-2.5 w-2.5" />
+                      {s.durationMinutes}m
+                      {s.notes && (
+                        <span className="max-w-[120px] truncate text-muted-foreground">
+                          — {s.notes}
+                        </span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
     return (
       <Card className="border-dashed">
         <CardHeader>
@@ -293,6 +391,176 @@ export function DeepWorkBlock({
   }
 
   // ── Active: selected activity + timer ────────────────────────────────
+  if (viewMode === "simple") {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <ActivityIcon icon={currentActivity.icon} className="h-4 w-4 text-primary" />
+          Deep Work: {currentActivity.name}
+          <span
+            className={cn(
+              "ml-auto font-mono text-base tabular-nums tracking-tight transition-colors",
+              running ? "text-foreground" : "text-muted-foreground/60",
+            )}
+          >
+            {formatElapsed(elapsed)}
+          </span>
+        </div>
+
+        {/* Activity selector (allow changing mid-session) */}
+        <Select value={selectedActivity} onValueChange={handleSelectChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {activities.map((a) => (
+              <SelectItem key={a.id} value={a.name}>
+                <div className="flex items-center gap-2">
+                  <ActivityIcon icon={a.icon} className="h-3.5 w-3.5" />
+                  {a.name}
+                </div>
+              </SelectItem>
+            ))}
+            <SelectItem value={ADD_NEW_VALUE}>
+              <div className="flex items-center gap-2 text-primary">
+                <Plus className="h-3.5 w-3.5" />
+                Add New Activity
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Timer */}
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "font-mono text-3xl tabular-nums tracking-tight transition-colors",
+              running ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {formatElapsed(elapsed)}
+          </div>
+          {!running && !showNotes ? (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={startTimer}
+              className="gap-1.5"
+            >
+              <Play className="h-3.5 w-3.5" />
+              Start
+            </Button>
+          ) : running ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={stopTimer}
+              className="gap-1.5"
+            >
+              <Square className="h-3.5 w-3.5" />
+              Stop
+            </Button>
+          ) : null}
+        </div>
+
+        {/* Notes input after stop */}
+        {showNotes && (
+          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <Textarea
+              placeholder="What did you work on? (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="min-h-[60px] text-sm"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleSaveSession}
+                disabled={saving || sessionElapsed < 60000}
+              >
+                <Timer className="mr-1 h-3.5 w-3.5" />
+                {saving
+                  ? "Saving..."
+                  : `Save ${Math.round(sessionElapsed / 1000 / 60)} min session`}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowNotes(false);
+                  setSessionElapsed(0);
+                }}
+              >
+                Discard
+              </Button>
+            </div>
+            {sessionElapsed < 60000 && (
+              <p className="text-xs text-muted-foreground">
+                Sessions under 1 minute won&apos;t be saved.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Completed sessions today */}
+        {sessions.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Today&apos;s sessions ({totalMinutesToday}m total)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {sessions.map((s) => (
+                  <Badge key={s.id} variant="secondary" className="gap-1">
+                    <Timer className="h-2.5 w-2.5" />
+                    {s.durationMinutes}m
+                    {s.notes && (
+                      <span className="max-w-[120px] truncate text-muted-foreground">
+                        — {s.notes}
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Add New Activity Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Activity</DialogTitle>
+              <DialogDescription>
+                Add a new activity to your deep work list.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Input
+                placeholder="e.g. System Design"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddActivity();
+                }}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddActivity} disabled={adding || !newName.trim()}>
+                {adding ? "Adding..." : "Add"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
     <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-primary/[0.03] to-primary/[0.08] dark:from-primary/[0.05] dark:to-primary/[0.12]">
       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-primary/10" />

@@ -256,6 +256,7 @@ export default function DashboardPage() {
         onSave={handleOutcomeSave}
         onToggle={handleOutcomeToggle}
         onReorder={handleOutcomeReorder}
+        viewMode={viewMode}
       />
 
       <DeepWorkBlock
@@ -263,6 +264,7 @@ export default function DashboardPage() {
         sessions={skillSessions}
         onLogSession={handleLogSession}
         onAddActivity={handleAddActivity}
+        viewMode={viewMode}
       />
 
       {viewMode === "full" && (

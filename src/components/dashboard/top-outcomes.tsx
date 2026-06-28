@@ -33,6 +33,7 @@ interface TopOutcomesProps {
   onSave: (index: number, text: string) => Promise<void>;
   onToggle: (index: number, completed: boolean) => Promise<void>;
   onReorder: (items: { text: string; completed: boolean }[]) => Promise<void>;
+  viewMode?: "simple" | "full";
 }
 
 function SortableCard({
@@ -120,7 +121,7 @@ function SortableCard({
           }}
           placeholder={`${label} outcome...`}
           className={cn(
-            "h-auto border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0",
+            "h-auto border-0 bg-transparent px-0 py-0.5 text-sm leading-snug shadow-none focus-visible:ring-0 rounded-none",
             done && "text-muted-foreground line-through",
           )}
         />
@@ -146,6 +147,7 @@ export function TopOutcomes({
   onSave,
   onToggle,
   onReorder,
+  viewMode = "full",
 }: TopOutcomesProps) {
   const [values, setValues] = useState<[string, string, string]>(["", "", ""]);
   const [completedState, setCompletedState] = useState<[boolean, boolean, boolean]>([false, false, false]);
@@ -276,20 +278,22 @@ export function TopOutcomes({
           Top 3 Outcomes
         </h2>
       </div>
-      <SectionTooltip>
-        <p>
-          Your <strong>top 3 outcomes</strong> are the most important things you
-          want to accomplish today.
-        </p>
-        <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs">
-          <li>Write them down each morning to set today&apos;s priorities</li>
-          <li>Focus on completing these before anything else</li>
-          <li>Check them off as you finish for a sense of progress</li>
-          <li>
-            Completing all 3 means the day was a win — regardless of distractions
-          </li>
-        </ul>
-      </SectionTooltip>
+      {viewMode === "full" && (
+        <SectionTooltip>
+          <p>
+            Your <strong>top 3 outcomes</strong> are the most important things you
+            want to accomplish today.
+          </p>
+          <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs">
+            <li>Write them down each morning to set today&apos;s priorities</li>
+            <li>Focus on completing these before anything else</li>
+            <li>Check them off as you finish for a sense of progress</li>
+            <li>
+              Completing all 3 means the day was a win — regardless of distractions
+            </li>
+          </ul>
+        </SectionTooltip>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
