@@ -238,7 +238,7 @@ export default function DashboardPage() {
         />
       }
       maxWidth="max-w-2xl"
-      scrollContentClass="space-y-6 pt-6"
+      scrollContentClass="space-y-6 pt-2"
     >
       <Separator />
 
