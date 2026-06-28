@@ -3,9 +3,10 @@
 import { useSyncExternalStore, useCallback } from "react";
 import { format } from "date-fns";
 import { Square } from "lucide-react";
-import { timerStore } from "@/lib/timer-store";
+import { timerStore, type TimerSnapshot } from "@/lib/timer-store";
 import { clockStore } from "@/lib/clock-store";
 import { Button } from "@/components/ui/button";
+import { logSkillSession } from "@/lib/actions/daily";
 
 export function LiveClock() {
   const now = useSyncExternalStore(
@@ -20,7 +21,20 @@ export function LiveClock() {
   );
 
   const handleStop = useCallback(() => {
-    timerStore.stop();
+    const snap = timerStore.getSnapshot();
+    if (!snap.activity) return;
+
+    const elapsedMs = timerStore.stop();
+    const durationMinutes = Math.round(elapsedMs / 1000 / 60);
+    if (durationMinutes < 1) return;
+
+    const today = format(new Date(), "yyyy-MM-dd");
+    logSkillSession({
+      date: today,
+      skill: snap.activity,
+      durationMinutes,
+      notes: snap.activity,
+    }).catch(() => {});
   }, []);
 
   if (running) {
