@@ -1,9 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useCallback } from "react";
 import { format } from "date-fns";
+import { Square } from "lucide-react";
 import { timerStore } from "@/lib/timer-store";
 import { clockStore } from "@/lib/clock-store";
+import { Button } from "@/components/ui/button";
 
 export function LiveClock() {
   const now = useSyncExternalStore(
@@ -17,24 +19,39 @@ export function LiveClock() {
     timerStore.getServerSnapshot,
   );
 
+  const handleStop = useCallback(() => {
+    timerStore.stop();
+  }, []);
+
   if (running) {
     const elapsedSeconds = Math.floor(elapsed / 1000);
     const m = Math.floor(elapsedSeconds / 60);
     const s = elapsedSeconds % 60;
     return (
-      <time
-        className="font-mono text-sm tabular-nums tracking-tight text-primary"
-        dateTime={`PT${elapsedSeconds}S`}
-        title="Deep work session in progress"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+      <span className="inline-flex items-center gap-1">
+        <time
+          className="font-mono text-sm tabular-nums tracking-tight text-primary"
+          dateTime={`PT${elapsedSeconds}S`}
+          title="Deep work session in progress"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+            </span>
+            {m.toString().padStart(2, "0")}:{s.toString().padStart(2, "0")}
           </span>
-          {m.toString().padStart(2, "0")}:{s.toString().padStart(2, "0")}
-        </span>
-      </time>
+        </time>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          onClick={handleStop}
+          aria-label="Stop timer"
+          className="text-primary hover:text-primary/80"
+        >
+          <Square className="size-3" />
+        </Button>
+      </span>
     );
   }
 
