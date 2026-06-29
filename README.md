@@ -4,23 +4,50 @@ A personal planning system — daily, weekly, and strategic.
 
 Track your 3 key outcomes each day, log deep work sessions, review evenings, keep score, and zoom out to the big picture. Built for clarity, not complexity.
 
+## What Is Dayflow?
+
+Dayflow is a personal planning app that helps you stay focused on what matters. Each day you set 3 key outcomes, track deep work sessions with a timer, and end with an evening review. Zoom out to weekly, monthly, and quarterly views to keep the big picture in sight.
+
 ## Features
 
-- **Daily Dashboard** — Set 3 outcomes per day, drag to reorder, mark complete. Log deep work sessions with time tracking. Evening review and "protection gate" (record what you said no to).
+### Daily Dashboard
+Plan your day: set 3 outcomes, drag to reorder, mark complete. Log deep work sessions with one-click timing. Evening review + "protection gate" to record what you said no to.
+
+<img src="public/screenshots/daily.png" alt="Daily Dashboard" width="700"/>
+
+### History
+Browse past entries, review completed outcomes, and see your deep work sessions. Edit or delete sessions as needed.
+
+<img src="public/screenshots/history.png" alt="History" width="700"/>
+
+### Settings
+Customize your experience — themes, fonts, view modes (basic/full), and app-wide scaling.
+
+<img src="public/screenshots/settings.png" alt="Settings" width="700"/>
+
+### More features
 - **Weekly View** — See your week at a glance, track time across categories.
 - **Horizon** — Monthly & quarterly planning. Strategic alignment beyond the day.
 - **Scorecard** — Visual metrics and trends. Charts for outcomes, deep work, skill sessions, and time allocation.
 - **Budget** — Track spending against your plan.
-- **History** — Browse past entries.
-- **Settings** — Themes, fonts, view modes (basic/full), app-wide scaling.
 
-## Screenshots
+## Quick Start
 
-| Daily Dashboard | History | Settings |
-|---|---|---|
-| ![Daily Dashboard](/screenshots/daily.png) | ![History](/screenshots/history.png) | ![Settings](/screenshots/settings.png) |
+```bash
+pnpm install
+pnpm dev
+```
 
-## Tech Stack
+Open [http://localhost:3000](http://localhost:3000).
+
+No external setup needed — the app uses a local SQLite file (`data.db`).
+
+---
+
+<details>
+<summary><b>For Developers</b></summary>
+
+### Tech Stack
 
 | Layer | Choice |
 |-------|--------|
@@ -31,23 +58,13 @@ Track your 3 key outcomes each day, log deep work sessions, review evenings, kee
 | ORM | Drizzle with drizzle-kit migrations |
 | Package Manager | pnpm |
 
-## Getting Started
+### Setup
 
-### Prerequisites
-
+#### Prerequisites
 - Node.js 20+
 - pnpm
 
-### Install & Run
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-### Database Setup
+#### Database
 
 ```bash
 # Generate migrations from schema
@@ -60,16 +77,14 @@ pnpm db:push
 pnpm db:studio
 ```
 
-The app uses a local SQLite file (`data.db`). No external database required.
-
-### Docker
+#### Docker
 
 ```bash
 docker compose up -d
 # Runs on port 3001
 ```
 
-## Project Structure
+### Project Structure
 
 ```
 src/
@@ -86,7 +101,7 @@ src/
 └── lib/          # Actions, DB, stores, utilities
 ```
 
-## Scripts
+### Scripts
 
 | Command | Description |
 |---------|-------------|
@@ -97,3 +112,5 @@ src/
 | `pnpm db:push` | Push schema to DB |
 | `pnpm db:studio` | Open Drizzle Studio |
 | `pnpm db:migrate` | Run migrations |
+
+</details>
