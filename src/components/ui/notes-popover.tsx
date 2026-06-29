@@ -104,13 +104,14 @@ export function NotesPopover() {
   const [draft, setDraft] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const dialogOpen = createOpen || editNote !== null;
+
   // Focus textarea when dialog opens
   useEffect(() => {
-    if ((createOpen || editNote) && textareaRef.current) {
-      // Small delay for dialog animation
+    if (dialogOpen && textareaRef.current) {
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
-  }, [createOpen, editNote]);
+  }, [dialogOpen]);
 
   function handleSave() {
     const text = draft.trim();
@@ -148,11 +149,16 @@ export function NotesPopover() {
     setDraft("");
   }
 
-  const dialogOpen = createOpen || editNote !== null;
-
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(nextOpen) => {
+          // Keep popover open while dialog is showing
+          if (!nextOpen && dialogOpen) return;
+          setOpen(nextOpen);
+        }}
+      >
         <motion.div
           className="fixed top-2 z-50"
           animate={{ right: `calc(13% + ${(224 - sidebarWidth) / 2}px)` }}
