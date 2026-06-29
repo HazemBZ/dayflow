@@ -14,6 +14,12 @@ Track your 3 key outcomes each day, log deep work sessions, review evenings, kee
 - **History** — Browse past entries.
 - **Settings** — Themes, fonts, view modes (basic/full), app-wide scaling.
 
+## Screenshots
+
+| Daily Dashboard | History | Settings |
+|---|---|---|
+| ![Daily Dashboard](/screenshots/daily.png) | ![History](/screenshots/history.png) | ![Settings](/screenshots/settings.png) |
+
 ## Tech Stack
 
 | Layer | Choice |
