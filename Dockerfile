@@ -17,10 +17,10 @@ COPY public ./daily-planning/public
 # Drizzle migration files (for startup migration)
 COPY drizzle ./drizzle
 # Migration script (plain JS, runs before Next.js server)
-COPY scripts/migrate.js ./scripts/migrate.js
+COPY scripts/migrate.mjs ./scripts/migrate.mjs
 # drizzle-orm not traced by Next.js standalone - inject for migration
 COPY node_modules/drizzle-orm ./daily-planning/node_modules/drizzle-orm
 
 EXPOSE 3000
 
-ENTRYPOINT ["sh", "-c", "node scripts/migrate.js && exec node daily-planning/server.js"]
+ENTRYPOINT ["sh", "-c", "node scripts/migrate.mjs && exec node daily-planning/server.js"]

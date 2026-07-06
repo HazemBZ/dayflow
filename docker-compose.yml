@@ -3,6 +3,9 @@ services:
     build: .
     ports:
       - "3001:3000"
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=512
+    mem_limit: 1g
     volumes:
       - data:/data
     restart: unless-stopped
