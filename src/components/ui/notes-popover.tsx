@@ -1,7 +1,6 @@
 "use client";
 
 import { useSyncExternalStore, useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
 import { notesStore, type Note } from "@/lib/notes-store";
 import { viewModeStore } from "@/lib/view-mode-store";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,11 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { StickyNote, Plus, X } from "lucide-react";
+import { StickyNote, Plus, X, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -36,6 +39,34 @@ function formatTime(ts: number): string {
 function snippet(text: string, max = 100): string {
   return text.length > max ? text.slice(0, max) + "…" : text;
 }
+
+const mdPreviewStyles =
+  "min-h-[140px] max-h-[300px] overflow-y-auto rounded-md border p-3 text-sm leading-relaxed " +
+  // headings
+  "[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold " +
+  "[&_h2]:mb-1.5 [&_h2]:text-base [&_h2]:font-semibold " +
+  "[&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold " +
+  // paragraphs & lists
+  "[&_p]:mb-2 [&_p:last-child]:mb-0 " +
+  "[&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 " +
+  "[&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 " +
+  "[&_li]:mb-1 [&_li:last-child]:mb-0 " +
+  // inline code
+  "[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs " +
+  // code blocks
+  "[&_pre]:mb-2 [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
+  // blockquote
+  "[&_blockquote]:mb-2 [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground " +
+  // links
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 " +
+  // table
+  "[&_table]:mb-2 [&_table]:w-full [&_table]:border-collapse " +
+  "[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold " +
+  "[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_td]:text-xs " +
+  // horizontal rule
+  "[&_hr]:my-3 [&_hr]:border-border " +
+  // task list
+  "[&_input[type=checkbox]]:accent-primary";
 
 // ─── Note Card ──────────────────────────────────────────────────────────
 
@@ -67,17 +98,27 @@ function NoteCard({
       <span className="text-xs text-muted-foreground">
         {formatTime(note.createdAt)}
       </span>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(note.id);
-        }}
-        className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted-foreground/20"
-        aria-label="Delete note"
-      >
-        <X className="size-3" />
-      </button>
+      <div className="absolute right-1.5 top-1.5 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <Link
+          href={`/notes/${note.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex size-5 items-center justify-center rounded hover:bg-muted-foreground/20"
+          aria-label="Open note"
+        >
+          <ExternalLink className="size-3" />
+        </Link>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(note.id);
+          }}
+          className="flex size-5 items-center justify-center rounded hover:bg-muted-foreground/20"
+          aria-label="Delete note"
+        >
+          <X className="size-3" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -91,17 +132,25 @@ export function NotesPopover() {
     notesStore.getServerSnapshot,
   );
 
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    notesStore.load().finally(() => setLoading(false));
+  }, []);
+
   const viewMode = useSyncExternalStore(
     viewModeStore.subscribe,
     viewModeStore.getSnapshot,
     viewModeStore.getServerSnapshot,
   );
   const sidebarWidth = viewMode === "simple" ? 64 : 224;
+  const noteButtonTop = viewMode === "simple" ? 94 : 120;
 
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editNote, setEditNote] = useState<Note | null>(null);
   const [draft, setDraft] = useState("");
+  const [previewMode, setPreviewMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const dialogOpen = createOpen || editNote !== null;
@@ -113,14 +162,14 @@ export function NotesPopover() {
     }
   }, [dialogOpen]);
 
-  function handleSave() {
+  async function handleSave() {
     const text = draft.trim();
     if (!text) return;
 
     if (editNote) {
-      notesStore.update(editNote.id, text);
+      await notesStore.update(editNote.id, text);
     } else {
-      notesStore.add(text);
+      await notesStore.add(text);
     }
 
     setDraft("");
@@ -128,25 +177,28 @@ export function NotesPopover() {
     setEditNote(null);
   }
 
-  function handleDelete(id: string) {
-    notesStore.remove(id);
+  async function handleDelete(id: string) {
+    await notesStore.remove(id);
   }
 
   function handleEdit(note: Note) {
     setEditNote(note);
     setDraft(note.text);
+    setPreviewMode(false);
   }
 
   function handleCreateOpen() {
     setDraft("");
     setEditNote(null);
     setCreateOpen(true);
+    setPreviewMode(false);
   }
 
   function handleDialogClose() {
     setCreateOpen(false);
     setEditNote(null);
     setDraft("");
+    setPreviewMode(false);
   }
 
   return (
@@ -159,10 +211,14 @@ export function NotesPopover() {
           setOpen(nextOpen);
         }}
       >
-        <motion.div
-          className="fixed top-2 z-50"
-          animate={{ right: `calc(13% + ${(224 - sidebarWidth) / 2}px)` }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
+        <div
+          className={cn(
+            "fixed right-[12px] z-50",
+            "transition-all duration-300 ease-in-out",
+            "top-2"
+          )}
+          style={{ right: `calc(17% + ${(224 - sidebarWidth) / 2}px)` }}
+          // style={{ top: noteButtonTop }} // Looks better, but ux is bad (user has to move cursor very far), maybe same top but to the left, next to sidebar
         >
           <PopoverTrigger
             data-slot="notes-popover-trigger"
@@ -177,7 +233,7 @@ export function NotesPopover() {
           >
             <StickyNote className="size-3.5" />
           </PopoverTrigger>
-        </motion.div>
+        </div>
         <PopoverContent
           side="bottom"
           align="center"
@@ -189,19 +245,32 @@ export function NotesPopover() {
             <span className="text-xs font-medium text-muted-foreground">
               Notes
             </span>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={handleCreateOpen}
-              aria-label="New note"
-            >
-              <Plus className="size-3.5" />
-            </Button>
+            <div className="flex items-center gap-0.5">
+              <Link
+                href="/notes"
+                className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label="Full page"
+              >
+                <ExternalLink className="size-3.5" />
+              </Link>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={handleCreateOpen}
+                aria-label="New note"
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
           </div>
 
           {/* Note list */}
           <div className="max-h-64 overflow-y-auto py-1">
-            {notes.length === 0 ? (
+            {loading ? (
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                Loading...
+              </p>
+            ) : notes.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                 No notes yet.
               </p>
@@ -223,7 +292,7 @@ export function NotesPopover() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editNote ? "Edit Note" : "New Note"}</DialogTitle>
             <DialogDescription>
@@ -232,19 +301,61 @@ export function NotesPopover() {
                 : "Write down a quick thought or reminder."}
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            ref={textareaRef}
-            placeholder="Type your note..."
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="min-h-[100px] resize-y"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                handleSave();
-              }
-            }}
-          />
+
+          {/* Write / Preview toggle */}
+          <div className="flex gap-0 border-b">
+            <button
+              type="button"
+              onClick={() => setPreviewMode(false)}
+              className={cn(
+                "px-4 py-1.5 text-xs font-medium transition-colors",
+                !previewMode
+                  ? "border-b-2 border-primary text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Write
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode(true)}
+              className={cn(
+                "px-4 py-1.5 text-xs font-medium transition-colors",
+                previewMode
+                  ? "border-b-2 border-primary text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Preview
+            </button>
+          </div>
+
+          {/* Editor / Preview area */}
+          {previewMode ? (
+            <div className={mdPreviewStyles}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
+              >
+                {draft || "*No content*"}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <Textarea
+              ref={textareaRef}
+              placeholder="Type your note...  (Markdown supported)"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="min-h-[140px] resize-y"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSave();
+                }
+              }}
+            />
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={handleDialogClose}>
               Cancel
