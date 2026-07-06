@@ -1,0 +1,19 @@
+[Unit]
+Description=Dayflow - Personal planning system
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/harozien/code/sandbox/creative/dayflow
+ExecStartPre=/usr/bin/node /home/harozien/code/sandbox/creative/dayflow/scripts/migrate.mjs
+ExecStart=/usr/bin/node /home/harozien/code/sandbox/creative/dayflow/.next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=25480
+Environment=HOSTNAME=127.0.0.1
+Environment=DATABASE_URL=file:/home/harozien/code/sandbox/creative/dayflow/data.db
+Environment="NODE_OPTIONS=--max-old-space-size=512 --expose-gc"
+
+[Install]
+WantedBy=default.target

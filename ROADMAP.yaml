@@ -1,0 +1,229 @@
+project:
+  name: Dayflow
+  description: Personal planning system — daily, weekly, and strategic planning with deep work tracking, scorecard, and budget
+  tags:
+    - nextjs
+    - planning
+    - drizzle
+    - sqlite
+roadmap:
+  - phase: P1 - Foundation
+    status: completed
+    started: 2026-05-01
+    completed: 2026-05-20
+    milestones:
+      - name: Next.js scaffold + Tailwind v4 + shadcn/ui
+        status: completed
+      - name: SQLite + Drizzle ORM setup
+        status: completed
+      - name: DB schema (daily entries, deep work, outcomes, reviews)
+        status: completed
+      - name: Theme system (dark/light, fonts, scaling)
+        status: completed
+      - name: Docker Compose deployment
+        status: completed
+    tasks:
+      - name: Scaffold Next.js 16 with App Router
+        status: completed
+      - name: Configure Tailwind CSS v4
+        status: completed
+      - name: Set up Drizzle ORM with libSQL driver
+        status: completed
+      - name: Define DB schema for daily planning
+        status: completed
+      - name: Create DB migration script
+        status: completed
+      - name: Build theme provider + config
+        status: completed
+      - name: Set up Docker Compose
+        status: completed
+  - phase: P2 - Daily Dashboard
+    status: completed
+    started: 2026-05-20
+    completed: 2026-06-05
+    milestones:
+      - name: Top 3 outcomes with drag-to-reorder
+        status: completed
+      - name: Deep work session timer + logging
+        status: completed
+      - name: Evening review block
+        status: completed
+      - name: Protection gate (what you said no to)
+        status: completed
+      - name: Time summary
+        status: completed
+    tasks:
+      - name: Build outcomes component with dnd-kit
+        status: completed
+      - name: Implement deep work timer with start/stop
+        status: completed
+      - name: Build evening review form
+        status: completed
+      - name: Build protection gate component
+        status: completed
+      - name: Build time summary component
+        status: completed
+      - name: Wire daily actions (CRUD for entries)
+        status: completed
+  - phase: P3 - History & Review
+    status: completed
+    started: 2026-06-05
+    completed: 2026-06-12
+    milestones:
+      - name: Past entries browse
+        status: completed
+      - name: Edit/delete deep work sessions
+        status: completed
+    tasks:
+      - name: Build history page with entry list
+        status: completed
+      - name: Build history actions (edit, delete)
+        status: completed
+      - name: Wire history server actions
+        status: completed
+  - phase: P4 - Weekly & Horizon
+    status: completed
+    started: 2026-06-12
+    completed: 2026-06-20
+    milestones:
+      - name: Weekly view with category time tracking
+        status: completed
+      - name: Horizon (monthly & quarterly planning)
+        status: completed
+    tasks:
+      - name: Build weekly page
+        status: completed
+      - name: Implement weekly actions
+        status: completed
+      - name: Build horizon page with monthly/quarterly views
+        status: completed
+      - name: Wire horizon actions
+        status: completed
+  - phase: P5 - Scorecard & Budget
+    status: completed
+    started: 2026-06-20
+    completed: 2026-06-29
+    milestones:
+      - name: Scorecard with charts (outcomes, deep work, trends)
+        status: completed
+      - name: Budget tracking
+        status: completed
+      - name: Field config customization
+        status: completed
+    tasks:
+      - name: Build scorecard page with recharts
+        status: completed
+      - name: Build budget page
+        status: completed
+      - name: Implement field config for user customization
+        status: completed
+      - name: Settings page (themes, fonts, view modes, scaling)
+        status: completed
+  - phase: P6 - Polish & Ship
+    status: completed
+    started: 2026-06-29
+    completed: 2026-06-29
+    milestones:
+      - name: Lint cleanup (42 issues → 0 errors, 0 warnings)
+        status: completed
+      - name: Error boundaries & edge case hardening
+        status: completed
+      - name: Final QA and production readiness
+        status: completed
+    tasks:
+      - name: Fix react-hooks/set-state-in-effect (6 files)
+        status: completed
+      - name: Fix @typescript-eslint/no-explicit-any (8 instances)
+        status: completed
+      - name: Fix no-require-imports in scripts/migrate.js
+        status: completed
+      - name: Clean up unused imports (24 warnings)
+        status: completed
+      - name: Add error.tsx + loading.tsx boundaries (7 routes)
+        status: completed
+      - name: Add global-error.tsx and not-found.tsx
+        status: completed
+      - name: Fix exhaust-deps warnings (9 → 0)
+        status: completed
+      - name: Final build and lint pass verification
+        status: completed
+  - phase: P7 - Persistence & Fixes
+    status: in_progress
+    started: 2026-06-30
+    milestones:
+      - name: Quick notes moved from localStorage to DB
+        status: completed
+    tasks:
+      - name: Add quick_notes table to Drizzle schema
+        status: completed
+      - name: Generate migration for quick_notes
+        status: completed
+      - name: Create CRUD server actions for notes
+        status: completed
+      - name: Rewrite notes-store to use server actions
+        status: completed
+      - name: Update NotesPopover for async DB loading
+        status: completed
+      - name: Build verification passes
+        status: completed
+  - phase: P8 - Markdown Preview for Notes
+    status: completed
+    started: 2026-07-02
+    completed: 2026-07-03
+    milestones:
+      - name: Write/Preview toggle in note editor dialog
+        status: completed
+    tasks:
+      - name: Install react-markdown + remark-gfm + rehype-sanitize
+        status: completed
+      - name: Add Write/Preview tab toggle to note dialog
+        status: completed
+      - name: Render markdown via react-markdown with rehype-sanitize
+        status: completed
+      - name: Style preview area with Tailwind prose-like classes
+        status: completed
+      - name: Build verification passes
+        status: completed
+  - phase: P9 - Production Hardening
+    status: in_progress
+    started: 2026-07-02
+    milestones:
+      - name: Fix server OOM (heap out of memory)
+        status: completed
+    tasks:
+      - name: Add NODE_OPTIONS=--max-old-space-size=512 + mem_limit to Docker
+        status: completed
+      - name: Add cacheLife expire to next.config.ts
+        status: completed
+      - name: Paginate getAllPastDays() with default limit 90
+        status: completed
+      - name: Paginate getAllScores() with default limit 52
+        status: completed
+      - name: Add instrumentation.ts with periodic GC workaround
+        status: completed
+      - name: Add NODE_OPTIONS=--expose-gc to systemd service
+        status: completed
+  - phase: P10 - Notes Expansion
+    status: completed
+    started: 2026-07-03
+    completed: 2026-07-03
+    milestones:
+      - name: Dedicated /notes page with full CRUD
+        status: completed
+      - name: Note detail page at /notes/[id]
+        status: completed
+      - name: Popover-to-page navigation (expand + full-page links)
+        status: completed
+    tasks:
+      - name: Add getNote(id) server action
+        status: completed
+      - name: Create /notes page with list CRUD
+        status: completed
+      - name: Create /notes/[id] detail page with inline edit
+        status: completed
+      - name: Add Notes nav item to sidebar
+        status: completed
+      - name: Add expand icon and full-page link to popover
+        status: completed
+      - name: Build verification passes
+        status: completed

@@ -1,11 +1,15 @@
 /**
- * Production migration script (plain JS — no tsx needed).
+ * Production migration script (ESM — no tsx needed).
  * Runs at container startup to apply any pending migrations.
  */
-const { createClient } = require("@libsql/client");
-const { drizzle } = require("drizzle-orm/libsql");
-const { migrate } = require("drizzle-orm/libsql/migrator");
-const path = require("path");
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const client = createClient({
   url: process.env.DATABASE_URL || "file:./data.db",

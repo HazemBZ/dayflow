@@ -1,0 +1,8 @@
+dayflow.me {
+    tls internal
+    reverse_proxy 127.0.0.1:25480
+}
+
+dayflow {
+    redir https://dayflow.me{uri}
+}
