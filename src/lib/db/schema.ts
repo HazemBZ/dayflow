@@ -134,6 +134,15 @@ export const fieldConfig = sqliteTable("field_config", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
 
+// ─── Quick Notes ─────────────────────────────────────────────────────────────
+export const quickNotes = sqliteTable("quick_notes", {
+  id: text("id").primaryKey(),
+  text: text("text").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  bookmarked: integer("bookmarked", { mode: "boolean" }).default(false),
+});
+
 // ─── Showcase Project Milestones ────────────────────────────────────────────
 export const showcaseMilestones = sqliteTable("showcase_milestones", {
   id: integer("id").primaryKey({ autoIncrement: true }),

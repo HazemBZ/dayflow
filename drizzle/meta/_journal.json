@@ -8,6 +8,20 @@
       "when": 1781563698175,
       "tag": "0000_magenta_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1782819250173,
+      "tag": "0001_perfect_archangel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783335880599,
+      "tag": "0002_bright_warpath",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `quick_notes` ADD `bookmarked` integer DEFAULT false;
