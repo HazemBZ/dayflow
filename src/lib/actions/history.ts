@@ -58,11 +58,12 @@ export interface DaySummary {
   timeLogs: TimeRow[];
 }
 
-export async function getAllPastDays(): Promise<DaySummary[]> {
+export async function getAllPastDays(limit = 90): Promise<DaySummary[]> {
   const allLogs = await db
     .select()
     .from(dailyLogs)
-    .orderBy(desc(dailyLogs.date));
+    .orderBy(desc(dailyLogs.date))
+    .limit(limit);
 
   if (allLogs.length === 0) return [];
 
@@ -128,7 +129,7 @@ export async function getDaySummary(date: string): Promise<DaySummary | null> {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function groupBy<T extends Record<string, any>>(
+function groupBy<T extends Record<string, unknown>>(
   rows: T[],
   key: keyof T,
 ): Record<string, T[]> {

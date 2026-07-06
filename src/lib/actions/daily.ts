@@ -32,7 +32,7 @@ export async function upsertDailyLog(params: {
   if (existing) {
     await db.update(dailyLogs).set(params).where(eq(dailyLogs.date, params.date));
   } else {
-    await db.insert(dailyLogs).values(params as any);
+    await db.insert(dailyLogs).values(params as typeof dailyLogs.$inferInsert);
   }
   revalidatePath("/");
   return { success: true };
@@ -85,7 +85,7 @@ export async function logSkillSession(params: {
   durationMinutes: number;
   notes?: string;
 }) {
-  await db.insert(skillSessions).values(params as any);
+  await db.insert(skillSessions).values(params as typeof skillSessions.$inferInsert);
   revalidatePath("/");
   revalidatePath("/weekly");
   return { success: true };
@@ -139,7 +139,7 @@ export async function logProtection(params: {
   requestDescription: string;
   actionTaken: string;
 }) {
-  await db.insert(protectionLogs).values(params as any);
+  await db.insert(protectionLogs).values(params as typeof protectionLogs.$inferInsert);
   revalidatePath("/");
   return { success: true };
 }

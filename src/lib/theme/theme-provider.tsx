@@ -45,23 +45,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeClass>("theme-default");
   const [font, setFontState] = useState<FontId>("geist");
 
+  // Hydrate from localStorage after mount to match SSR output and avoid
+  // hydration mismatches on theme/font buttons.
   useEffect(() => {
-    // Restore theme
     const savedTheme = localStorage.getItem("theme");
-    if (isValidTheme(savedTheme)) {
-      setThemeState(savedTheme);
-      document.documentElement.classList.add(savedTheme);
-    } else {
-      document.documentElement.classList.add("theme-default");
-    }
-
-    // Restore font
+    if (isValidTheme(savedTheme)) setThemeState(savedTheme);
     const savedFont = localStorage.getItem("font");
-    if (isValidFontId(savedFont)) {
-      setFontState(savedFont);
-      applyFont(savedFont);
-    }
+    if (isValidFontId(savedFont)) setFontState(savedFont);
   }, []);
+
+  // Apply theme class + font variable to <html>
+  useEffect(() => {
+    for (const th of THEMES) {
+      document.documentElement.classList.remove(th.className);
+    }
+    document.documentElement.classList.add(theme);
+    applyFont(font);
+  }, [theme, font]);
 
   const setTheme = (t: ThemeClass) => {
     for (const th of THEMES) {

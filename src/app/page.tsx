@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useSyncExternalStore } from "react";
-import { format, addDays, isPast, isToday, startOfDay, parseISO } from "date-fns";
+import { useEffect, useState, useCallback, useMemo, useSyncExternalStore, startTransition } from "react";
+import { format, addDays, isToday, startOfDay, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { Header } from "@/components/dashboard/header";
 import { PageScroll } from "@/components/ui/page-scroll";
@@ -102,20 +102,48 @@ export default function DashboardPage() {
         getTimeLogsForDate(dateStr),
         getDeepWorkActivities(),
       ]);
-      setDailyLog(log as DailyLog | null);
-      setSkillSessions(sessions as SkillSessionRow[]);
-      setTimeLogs(logs as TimeLogRow[]);
-      setActivities(acts as { id: number; name: string; icon: string }[]);
+      startTransition(() => {
+        setDailyLog(log as DailyLog | null);
+        setSkillSessions(sessions as SkillSessionRow[]);
+        setTimeLogs(logs as TimeLogRow[]);
+        setActivities(acts as { id: number; name: string; icon: string }[]);
+      });
     } catch (err) {
       console.error("Failed to load dashboard data", err);
     } finally {
-      setLoading(false);
+      startTransition(() => {
+        setLoading(false);
+      });
     }
   }, [dateStr]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let ignore = false;
+    (async () => {
+      try {
+        const [log, sessions, logs, acts] = await Promise.all([
+          getDailyLog(dateStr),
+          getSkillSessionsForDate(dateStr),
+          getTimeLogsForDate(dateStr),
+          getDeepWorkActivities(),
+        ]);
+        if (ignore) return;
+        startTransition(() => {
+          setDailyLog(log as DailyLog | null);
+          setSkillSessions(sessions as SkillSessionRow[]);
+          setTimeLogs(logs as TimeLogRow[]);
+          setActivities(acts as { id: number; name: string; icon: string }[]);
+        });
+      } catch (err) {
+        if (!ignore) console.error("Failed to load dashboard data", err);
+      } finally {
+        if (!ignore) startTransition(() => setLoading(false));
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [dateStr]);
 
   const outcomes = [
     parseOutcome(dailyLog?.outcome1 ?? null),

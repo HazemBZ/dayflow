@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import { startOfWeek, format, parseISO, addDays } from "date-fns";
 import {
   Card,
@@ -17,8 +17,6 @@ import {
   Progress,
   ProgressTrack,
   ProgressIndicator,
-  ProgressLabel,
-  ProgressValue,
 } from "@/components/ui/progress";
 
 import {
@@ -81,28 +79,6 @@ const TARGET_KEY_META: Record<
   k8sHours: { label: "K8s", unit: "hrs", step: 0.5 },
 };
 
-const DB_KEY_TO_TARGET_KEY: Record<string, TargetKey> = {
-  apps_target: "appsTarget",
-  networking_target: "networkingTarget",
-  learning_hours_target: "learningHoursTarget",
-  project_hours_target: "projectHoursTarget",
-  ai_exploration_hours_target: "aiExplorationHoursTarget",
-  terraform_hours: "terraformHours",
-  aws_hours: "awsHours",
-  k8s_hours: "k8sHours",
-};
-
-const TARGET_KEY_TO_DB_KEY: Record<TargetKey, string> = {
-  appsTarget: "apps_target",
-  networkingTarget: "networking_target",
-  learningHoursTarget: "learning_hours_target",
-  projectHoursTarget: "project_hours_target",
-  aiExplorationHoursTarget: "ai_exploration_hours_target",
-  terraformHours: "terraform_hours",
-  awsHours: "aws_hours",
-  k8sHours: "k8s_hours",
-};
-
 const CATEGORY_TARGET_MAP: Record<string, TargetKey> = {
   immigration_apps: "appsTarget",
   terraform: "terraformHours",
@@ -126,8 +102,8 @@ export default function WeeklyPage() {
   const weekLabel = `${format(mondayDate, "MMM d")} – ${format(sundayDate, "MMM d, yyyy")}`;
 
   // ── Data state ──────────────────────────────────────────────────────
-  const [plan, setPlan] = useState<WeeklyPlan | null>(null);
-  const [score, setScore] = useState<WeeklyScore | null>(null);
+  const [, setPlan] = useState<WeeklyPlan | null>(null);
+  const [, setScore] = useState<WeeklyScore | null>(null);
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([]);
   const [skillSessions, setSkillSessions] = useState<SkillSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +132,8 @@ export default function WeeklyPage() {
 
   // ── Load data ───────────────────────────────────────────────────────
   useEffect(() => {
-    async function load() {
+    let ignore = false;
+    (async () => {
       try {
         const [planData, scoreData, logs, sessions] = await Promise.all([
           getWeeklyPlan(weekStart),
@@ -164,50 +141,55 @@ export default function WeeklyPage() {
           getTimeLogsForWeek(weekStart),
           getSkillSessionsForWeek(weekStart),
         ]);
-        if (planData) {
-          const vals = { ...PLAN_DEFAULTS };
-          for (const key of TARGET_FIELD_KEYS) {
-            const dbVal = (planData as any)[key];
-            if (dbVal != null) vals[key] = dbVal;
+        if (ignore) return;
+        startTransition(() => {
+          if (planData) {
+            const vals = { ...PLAN_DEFAULTS };
+            for (const key of TARGET_FIELD_KEYS) {
+              const planRecord = planData as Record<string, unknown>;
+              const dbVal = planRecord[key] as number | undefined;
+              if (dbVal != null) vals[key] = dbVal;
+            }
+            setTargetValues(vals);
+            setLeadershipImprovement(
+              planData.leadershipImprovement ?? "",
+            );
+            setLeadershipCompleted(
+              planData.leadershipCompleted ?? false,
+            );
           }
-          setTargetValues(vals);
-          setLeadershipImprovement(
-            planData.leadershipImprovement ?? "",
-          );
-          setLeadershipCompleted(
-            planData.leadershipCompleted ?? false,
-          );
-        }
-        if (scoreData) {
-          setAppsSubmitted(
-            scoreData.applicationsSubmitted ?? 0,
-          );
-          setNetworkingConversations(
-            scoreData.networkingConversations ?? 0,
-          );
-          setScoreLearningHours(scoreData.learningHours ?? 0);
-          setShowcaseProjectHours(
-            scoreData.showcaseProjectHours ?? 0,
-          );
-          setScoreAiExplorationHours(
-            scoreData.aiExplorationHours ?? 0,
-          );
-          setLeadershipImproved(
-            scoreData.leadershipImproved ?? false,
-          );
-        }
-        setPlan(planData);
-        setScore(scoreData);
-        setTimeLogs(logs);
-        setSkillSessions(sessions);
-
+          if (scoreData) {
+            setAppsSubmitted(
+              scoreData.applicationsSubmitted ?? 0,
+            );
+            setNetworkingConversations(
+              scoreData.networkingConversations ?? 0,
+            );
+            setScoreLearningHours(scoreData.learningHours ?? 0);
+            setShowcaseProjectHours(
+              scoreData.showcaseProjectHours ?? 0,
+            );
+            setScoreAiExplorationHours(
+              scoreData.aiExplorationHours ?? 0,
+            );
+            setLeadershipImproved(
+              scoreData.leadershipImproved ?? false,
+            );
+          }
+          setPlan(planData);
+          setScore(scoreData);
+          setTimeLogs(logs);
+          setSkillSessions(sessions);
+        });
       } catch (e) {
-        console.error("Failed to load weekly data", e);
+        if (!ignore) console.error("Failed to load weekly data", e);
       } finally {
-        setLoading(false);
+        if (!ignore) startTransition(() => setLoading(false));
       }
-    }
-    load();
+    })();
+    return () => {
+      ignore = true;
+    };
   }, [weekStart]);
 
   // ── Feedback helper ─────────────────────────────────────────────────

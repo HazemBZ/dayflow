@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Crown, Save, GripVertical } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, startTransition } from "react";
+import { Crown, Save } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -113,6 +113,9 @@ function SortableCard({
         <Input
           value={value}
           onChange={(e) => onValueChange(index, e.target.value)}
+          onBlur={() => {
+            if (dirty) onSave(index);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -161,7 +164,7 @@ export function TopOutcomes({
     false,
     false,
   ]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [, setActiveId] = useState<string | null>(null);
   const [itemIds, setItemIds] = useState<string[]>(["outcome-0", "outcome-1", "outcome-2"]);
   const labels = ["First", "Second", "Third"];
 
@@ -173,13 +176,15 @@ export function TopOutcomes({
   );
 
   useEffect(() => {
-    setValues([
-      outcomes[0] ?? "",
-      outcomes[1] ?? "",
-      outcomes[2] ?? "",
-    ]);
-    setCompletedState([completed[0], completed[1], completed[2]]);
-  }, [outcomes[0], outcomes[1], outcomes[2], completed[0], completed[1], completed[2]]);
+    startTransition(() => {
+      setValues([
+        outcomes[0] ?? "",
+        outcomes[1] ?? "",
+        outcomes[2] ?? "",
+      ]);
+      setCompletedState([completed[0], completed[1], completed[2]]);
+    });
+  }, [outcomes, completed]);
 
   const handleValueChange = useCallback(
     (index: number, text: string) => {

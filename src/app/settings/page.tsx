@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore, startTransition } from "react";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { PageScroll } from "@/components/ui/page-scroll";
 import {
@@ -16,7 +16,6 @@ import {
   getDeepWorkActivities,
   addDeepWorkActivity,
   deleteDeepWorkActivity,
-  reorderDeepWorkActivities,
 } from "@/lib/actions/deep-work";
 import {
   getFieldConfigs,
@@ -140,17 +139,39 @@ function DeepWorkSection({
   async function load() {
     try {
       const data = await getDeepWorkActivities();
-      setActivities(data);
+      startTransition(() => {
+        setActivities(data);
+      });
     } catch {
       showFeedback("Failed to load activities", false);
     } finally {
-      setLoading(false);
+      startTransition(() => {
+        setLoading(false);
+      });
     }
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    let ignore = false;
+    (async () => {
+      try {
+        const data = await getDeepWorkActivities();
+        if (ignore) return;
+        startTransition(() => {
+          setActivities(data);
+        });
+      } catch {
+        if (!ignore) showFeedback("Failed to load activities", false);
+      } finally {
+        if (!ignore) startTransition(() => {
+          setLoading(false);
+        });
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [showFeedback]);
 
   async function handleAdd() {
     const name = newName.trim();
@@ -267,19 +288,41 @@ function FieldConfigSection({
   async function load(): Promise<FieldConfigRow[]> {
     try {
       const data = await getFieldConfigs(section);
-      setConfigs(data);
+      startTransition(() => {
+        setConfigs(data);
+      });
       return data;
     } catch {
       showFeedback("Failed to load field configs", false);
       return [];
     } finally {
-      setLoading(false);
+      startTransition(() => {
+        setLoading(false);
+      });
     }
   }
 
   useEffect(() => {
-    load();
-  }, [section]);
+    let ignore = false;
+    (async () => {
+      try {
+        const data = await getFieldConfigs(section);
+        if (ignore) return;
+        startTransition(() => {
+          setConfigs(data);
+        });
+      } catch {
+        if (!ignore) showFeedback("Failed to load field configs", false);
+      } finally {
+        if (!ignore) startTransition(() => {
+          setLoading(false);
+        });
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [section, showFeedback]);
 
   function startEdit(field: FieldConfigRow) {
     setEditingId(field.id);

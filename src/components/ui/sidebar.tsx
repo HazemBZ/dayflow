@@ -11,11 +11,10 @@ import {
   History,
   Settings,
   Menu,
-  X,
   Palette,
   Eye,
   ZoomIn,
-  ZoomOut,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -35,6 +34,7 @@ const NAV_ITEMS = [
   { title: "Horizon", href: "/horizon", icon: Map },
   { title: "Budget", href: "/budget", icon: Clock },
   { title: "History", href: "/history", icon: History },
+  { title: "Notes", href: "/notes", icon: StickyNote },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 

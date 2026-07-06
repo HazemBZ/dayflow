@@ -34,7 +34,7 @@ export async function upsertWeeklyPlan(params: {
   if (existing) {
     await db.update(weeklyPlans).set(params).where(eq(weeklyPlans.weekStart, params.weekStart));
   } else {
-    await db.insert(weeklyPlans).values(params as any);
+    await db.insert(weeklyPlans).values(params as typeof weeklyPlans.$inferInsert);
   }
   revalidatePath("/weekly");
   return { success: true };
@@ -64,18 +64,19 @@ export async function upsertWeeklyScore(params: {
   if (existing) {
     await db.update(weeklyScores).set(params).where(eq(weeklyScores.weekStart, params.weekStart));
   } else {
-    await db.insert(weeklyScores).values(params as any);
+    await db.insert(weeklyScores).values(params as typeof weeklyScores.$inferInsert);
   }
   revalidatePath("/weekly");
   revalidatePath("/scorecard");
   return { success: true };
 }
 
-export async function getAllScores() {
+export async function getAllScores(limit = 52) {
   return await db
     .select()
     .from(weeklyScores)
-    .orderBy(asc(weeklyScores.weekStart));
+    .orderBy(asc(weeklyScores.weekStart))
+    .limit(limit);
 }
 
 // ─── Time Logs ────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ export async function logTime(params: {
   hours: number;
   description?: string;
 }) {
-  await db.insert(timeLogs).values(params as any);
+  await db.insert(timeLogs).values(params as typeof timeLogs.$inferInsert);
   revalidatePath("/budget");
   return { success: true };
 }

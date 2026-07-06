@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore, startTransition } from "react";
 import {
   Play, Square, Timer, BookOpen, RefreshCw, Cloud, Container,
   Users, Crown, GitBranch, Code, Plus,
-  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,7 +95,9 @@ export function DeepWorkBlock({
   // Sync selected activity from running timer (e.g. after navigation back)
   useEffect(() => {
     if (running && currentTimerActivity) {
-      setSelectedActivity(currentTimerActivity);
+      startTransition(() => {
+        setSelectedActivity(currentTimerActivity);
+      });
     }
   }, [running, currentTimerActivity]);
 

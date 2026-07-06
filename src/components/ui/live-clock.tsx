@@ -3,7 +3,7 @@
 import { useSyncExternalStore, useCallback } from "react";
 import { format } from "date-fns";
 import { Square } from "lucide-react";
-import { timerStore, type TimerSnapshot } from "@/lib/timer-store";
+import { timerStore } from "@/lib/timer-store";
 import { clockStore } from "@/lib/clock-store";
 import { Button } from "@/components/ui/button";
 import { logSkillSession } from "@/lib/actions/daily";
