@@ -205,9 +205,15 @@ function DeepWorkSection({
         <CardHeader>
           <CardTitle>Deep Work Activities</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            Loading…
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-muted/30" />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted" />
+            <div className="h-10 w-20 animate-pulse rounded-lg bg-muted" />
           </div>
         </CardContent>
       </Card>
@@ -404,10 +410,13 @@ function FieldConfigSection({
         <CardHeader>
           <CardTitle>{title}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            Loading…
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-12 w-full animate-pulse rounded-lg bg-muted/30" />
+            ))}
           </div>
+          <div className="h-10 w-full animate-pulse rounded-lg bg-muted" />
         </CardContent>
       </Card>
     );
