@@ -8,6 +8,7 @@ import {
   Merriweather,
 } from "next/font/google";
 import { Sidebar } from "@/components/ui/sidebar";
+import { PageTransition } from "@/components/ui/page-transition";
 import { LiveClock } from "@/components/ui/live-clock";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
 import { ScaleProvider } from "@/lib/scale-provider";
@@ -70,7 +71,7 @@ export default function RootLayout({
             </div>
             <NotesPopover />
             <main className="flex-1 h-full overflow-auto p-4 md:p-6 lg:p-8">
-              {children}
+              <PageTransition>{children}</PageTransition>
             </main>
           </div>
           </ScaleProvider>
