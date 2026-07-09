@@ -190,6 +190,9 @@ roadmap:
     milestones:
       - name: Fix server OOM (heap out of memory)
         status: completed
+      - name: Loading skeleton polish (scorecard, budget, notes, settings)
+        status: completed
+        completed: 2026-07-09
     tasks:
       - name: Add NODE_OPTIONS=--max-old-space-size=512 + mem_limit to Docker
         status: completed
