@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, useState, useRef, useEffect } from "react";
 import { notesStore, type Note } from "@/lib/notes-store";
+import { bugNotesStore, type BugNote } from "@/lib/bug-notes-store";
 import { viewModeStore } from "@/lib/view-mode-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,10 +35,6 @@ function formatTime(ts: number): string {
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function snippet(text: string, max = 100): string {
-  return text.length > max ? text.slice(0, max) + "…" : text;
 }
 
 const mdPreviewStyles =
@@ -74,38 +71,93 @@ function NoteCard({
   note,
   onDelete,
   onEdit,
+  bugMode = false,
 }: {
   note: Note;
   onDelete: (id: string) => void;
   onEdit: (note: Note) => void;
+  bugMode?: boolean;
 }) {
+  const detailHref = bugMode ? `/bugs/${note.id}` : `/notes/${note.id}`;
+  const label = bugMode ? "bug" : "note";
   return (
     <div
-      onClick={() => onEdit(note)}
+      onClick={() => {
+        if (bugMode) {
+          window.open(detailHref, "_self");
+        } else {
+          onEdit(note);
+        }
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onEdit(note);
+          if (bugMode) {
+            window.open(detailHref, "_self");
+          } else {
+            onEdit(note);
+          }
         }
       }}
       role="button"
       tabIndex={0}
-      className="group relative flex w-full flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted cursor-pointer"
+      className="group relative flex w-full flex-col gap-0 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted cursor-pointer"
     >
-      <span className="line-clamp-2 leading-snug text-foreground">
-        {snippet(note.text)}
-      </span>
+      <div className={cn("max-h-[3lh] overflow-hidden leading-snug text-foreground [&_ul]:mb-0 [&_ol]:mb-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:mb-0 [&_p]:mb-0 [&_p]:inline [&_p:after]:content-['_']", bugMode && (note as unknown as BugNote).status === "resolved" && "line-through opacity-60")}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeSanitize]}
+        >
+          {note.text}
+        </ReactMarkdown>
+      </div>
       <span className="text-xs text-muted-foreground">
         {formatTime(note.createdAt)}
       </span>
-      <div className="absolute right-1.5 top-1.5 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute right-1 top-1 flex gap-0 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute -inset-1 rounded-md bg-background/20 backdrop-blur-[2px]" />
+        {bugMode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const bug = note as unknown as BugNote;
+              const nextStatus = bug.status === "resolved" ? "open" : "resolved";
+              bugNotesStore.updateStatus(note.id, nextStatus);
+            }}
+            className={cn(
+              "relative flex size-4 items-center justify-center rounded hover:bg-muted-foreground/20",
+              (note as unknown as BugNote).status === "resolved"
+                ? "text-green-500"
+                : "text-muted-foreground",
+            )}
+            aria-label={
+              (note as unknown as BugNote).status === "resolved"
+                ? "Reopen bug"
+                : "Resolve bug"
+            }
+          >
+            <svg
+              className="size-2.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </button>
+        )}
         <Link
-          href={`/notes/${note.id}`}
+          href={detailHref}
           onClick={(e) => e.stopPropagation()}
-          className="flex size-5 items-center justify-center rounded hover:bg-muted-foreground/20"
-          aria-label="Open note"
+          className="relative flex size-4 items-center justify-center rounded hover:bg-muted-foreground/20"
+          aria-label={`Open ${label}`}
         >
-          <ExternalLink className="size-3" />
+          <ExternalLink className="size-2.5" />
         </Link>
         <button
           type="button"
@@ -113,10 +165,10 @@ function NoteCard({
             e.stopPropagation();
             onDelete(note.id);
           }}
-          className="flex size-5 items-center justify-center rounded hover:bg-muted-foreground/20"
-          aria-label="Delete note"
+          className="relative flex size-4 items-center justify-center rounded hover:bg-muted-foreground/20"
+          aria-label={`Delete ${label}`}
         >
-          <X className="size-3" />
+          <X className="size-2.5" />
         </button>
       </div>
     </div>
@@ -132,10 +184,36 @@ export function NotesPopover() {
     notesStore.getServerSnapshot,
   );
 
+  const bugNotes = useSyncExternalStore(
+    bugNotesStore.subscribe,
+    bugNotesStore.getSnapshot,
+    bugNotesStore.getServerSnapshot,
+  );
+
   const [loading, setLoading] = useState(true);
 
+  // Bug mode: shift+click on trigger reveals bug notes instead of regular notes
+  const bugModeRef = useRef(false);
+  const [bugMode, setBugMode] = useState(false);
+
+  const [open, setOpen] = useState(false);
+
+  const handleTriggerPointerDown = (e: React.PointerEvent) => {
+    bugModeRef.current = e.shiftKey;
+  };
+
   useEffect(() => {
-    notesStore.load().finally(() => setLoading(false));
+    if (open) {
+      setBugMode(bugModeRef.current);
+    }
+  }, [open]);
+
+  const activeNotes = bugMode ? bugNotes : notes;
+
+  useEffect(() => {
+    Promise.all([notesStore.load(), bugNotesStore.load()]).finally(() =>
+      setLoading(false),
+    );
   }, []);
 
   const viewMode = useSyncExternalStore(
@@ -145,8 +223,6 @@ export function NotesPopover() {
   );
   const sidebarWidth = viewMode === "simple" ? 64 : 224;
   const noteButtonTop = viewMode === "simple" ? 94 : 120;
-
-  const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editNote, setEditNote] = useState<Note | null>(null);
   const [draft, setDraft] = useState("");
@@ -166,10 +242,11 @@ export function NotesPopover() {
     const text = draft.trim();
     if (!text) return;
 
+    const store = bugMode ? bugNotesStore : notesStore;
     if (editNote) {
-      await notesStore.update(editNote.id, text);
+      await store.update(editNote.id, text);
     } else {
-      await notesStore.add(text);
+      await store.add(text);
     }
 
     setDraft("");
@@ -178,7 +255,8 @@ export function NotesPopover() {
   }
 
   async function handleDelete(id: string) {
-    await notesStore.remove(id);
+    const store = bugMode ? bugNotesStore : notesStore;
+    await store.remove(id);
   }
 
   function handleEdit(note: Note) {
@@ -221,6 +299,7 @@ export function NotesPopover() {
           // style={{ top: noteButtonTop }} // Looks better, but ux is bad (user has to move cursor very far), maybe same top but to the left, next to sidebar
         >
           <PopoverTrigger
+            onPointerDown={handleTriggerPointerDown}
             data-slot="notes-popover-trigger"
             className={cn(
               "flex size-7 items-center justify-center rounded-full",
@@ -243,11 +322,11 @@ export function NotesPopover() {
           {/* Header */}
           <div className="flex items-center justify-between border-b px-3 py-2.5">
             <span className="text-xs font-medium text-muted-foreground">
-              Notes
+              {bugMode ? "Bugs" : "Notes"}
             </span>
             <div className="flex items-center gap-0.5">
               <Link
-                href="/notes"
+                href={bugMode ? "/bugs" : "/notes"}
                 className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 aria-label="Full page"
               >
@@ -270,18 +349,19 @@ export function NotesPopover() {
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                 Loading...
               </p>
-            ) : notes.length === 0 ? (
+            ) : activeNotes.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                No notes yet.
+                {bugMode ? "No bugs yet." : "No notes yet."}
               </p>
             ) : (
               <div className="relative">
-                {notes.map((note) => (
+                {activeNotes.map((note) => (
                   <NoteCard
                     key={note.id}
-                    note={note}
+                    note={note as Note}
                     onDelete={handleDelete}
                     onEdit={handleEdit}
+                    bugMode={bugMode}
                   />
                 ))}
               </div>
@@ -294,11 +374,23 @@ export function NotesPopover() {
       <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editNote ? "Edit Note" : "New Note"}</DialogTitle>
+            <DialogTitle>
+              {editNote
+                ? bugMode
+                  ? "Edit Bug"
+                  : "Edit Note"
+                : bugMode
+                  ? "New Bug"
+                  : "New Note"}
+            </DialogTitle>
             <DialogDescription>
               {editNote
-                ? "Update your note."
-                : "Write down a quick thought or reminder."}
+                ? bugMode
+                  ? "Update this bug report."
+                  : "Update your note."
+                : bugMode
+                  ? "Report a new bug."
+                  : "Write down a quick thought or reminder."}
             </DialogDescription>
           </DialogHeader>
 

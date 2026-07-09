@@ -216,7 +216,8 @@ export default function NotesPage() {
           {filteredNotes.map((note) => (
             <div
               key={note.id}
-              className="group relative rounded-xl border bg-card p-4 transition-colors hover:bg-accent/30"
+              className="group relative cursor-pointer rounded-xl border bg-card p-4 transition-colors hover:bg-accent/30"
+              onClick={() => router.push(`/notes/${note.id}`)}
             >
               {/* Top row: timestamp + actions */}
               <div className="mb-2 flex items-center justify-between">
