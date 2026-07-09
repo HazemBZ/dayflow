@@ -143,6 +143,17 @@ export const quickNotes = sqliteTable("quick_notes", {
   bookmarked: integer("bookmarked", { mode: "boolean" }).default(false),
 });
 
+// ─── Bug Notes (secret — shift+click notes popover) ─────────────────────────
+export const bugNotes = sqliteTable("bug_notes", {
+  id: text("id").primaryKey(),
+  text: text("text").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  bookmarked: integer("bookmarked", { mode: "boolean" }).default(false),
+  severity: text("severity", { enum: ["low", "medium", "high", "critical"] }).default("medium"),
+  status: text("status", { enum: ["open", "in-progress", "resolved", "closed"] }).default("open"),
+});
+
 // ─── Showcase Project Milestones ────────────────────────────────────────────
 export const showcaseMilestones = sqliteTable("showcase_milestones", {
   id: integer("id").primaryKey({ autoIncrement: true }),
