@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageScroll } from "@/components/ui/page-scroll";
 import { cn } from "@/lib/utils";
-import { Plus, ExternalLink, Pencil, Trash2, StickyNote, Bookmark } from "lucide-react";
+import { Plus, ExternalLink, Pencil, Trash2, StickyNote, Bookmark, Archive, ArchiveRestore } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -64,11 +64,13 @@ export default function NotesPage() {
   const [editNote, setEditNote] = useState<Note | null>(null);
   const [deleteNote, setDeleteNote] = useState<Note | null>(null);
   const [showBookmarked, setShowBookmarked] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState("");
   const [previewMode, setPreviewMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const filteredNotes = showBookmarked ? notes.filter((n) => n.bookmarked) : notes;
+  const baseNotes = showArchived ? notes.filter((n) => n.archived) : notes.filter((n) => !n.archived);
+  const filteredNotes = showBookmarked ? baseNotes.filter((n) => n.bookmarked) : baseNotes;
 
   const dialogOpen = createOpen || editNote !== null;
 
@@ -147,12 +149,22 @@ export default function NotesPage() {
               Notes
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {showBookmarked
-                ? `${filteredNotes.length} bookmarked`
-                : `${notes.length} note${notes.length !== 1 ? "s" : ""}`}
+              {showArchived
+                ? `${filteredNotes.length} archived`
+                : showBookmarked
+                  ? `${filteredNotes.length} bookmarked`
+                  : `${filteredNotes.length} note${filteredNotes.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              <Archive className={showArchived ? "mr-1 size-3.5" : "mr-1 size-3.5"} />
+              Archived
+            </Button>
             <Button
               variant={showBookmarked ? "default" : "outline"}
               size="sm"
@@ -197,14 +209,16 @@ export default function NotesPage() {
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <StickyNote className="mb-3 size-10 text-muted-foreground/40" />
           <p className="text-lg font-medium text-muted-foreground">
-            {showBookmarked ? "No bookmarked notes" : "No notes yet"}
+            {showArchived ? "No archived notes" : showBookmarked ? "No bookmarked notes" : "No notes yet"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {showBookmarked
-              ? "Bookmark notes to find them quickly"
-              : "Write your first note to get started"}
+            {showArchived
+              ? "Archive notes to declutter your view"
+              : showBookmarked
+                ? "Bookmark notes to find them quickly"
+                : "Write your first note to get started"}
           </p>
-          {!showBookmarked && (
+          {!showArchived && !showBookmarked && (
             <Button className="mt-4" onClick={handleCreateOpen}>
               <Plus className="mr-1 size-3.5" />
               Create Note
@@ -241,6 +255,22 @@ export default function NotesPage() {
                         note.bookmarked && "fill-current text-yellow-500",
                       )}
                     />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      notesStore.toggleArchive(note.id);
+                    }}
+                    aria-label={note.archived ? "Unarchive note" : "Archive note"}
+                  >
+                    {note.archived ? (
+                      <ArchiveRestore className="size-3.5" />
+                    ) : (
+                      <Archive className="size-3.5" />
+                    )}
                   </Button>
                   <Button
                     variant="ghost"

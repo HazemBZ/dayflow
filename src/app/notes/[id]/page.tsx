@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -200,6 +200,17 @@ export default function NoteDetailPage() {
           All Notes
         </Button>
         <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => notesStore.toggleArchive(note.id)}
+          >
+            {note.archived ? (
+              <><ArchiveRestore className="mr-1 size-3.5" /> Unarchive</>
+            ) : (
+              <><Archive className="mr-1 size-3.5" /> Archive</>
+            )}
+          </Button>
           <Button
             variant="outline"
             size="sm"

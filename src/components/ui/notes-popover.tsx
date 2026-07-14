@@ -208,7 +208,7 @@ export function NotesPopover() {
     }
   }, [open]);
 
-  const activeNotes = bugMode ? bugNotes : notes;
+  const activeNotes = bugMode ? bugNotes : notes.filter((n) => !n.archived);
 
   useEffect(() => {
     Promise.all([notesStore.load(), bugNotesStore.load()]).finally(() =>
