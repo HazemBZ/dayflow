@@ -29,6 +29,13 @@
       "when": 1783598243901,
       "tag": "0003_nasty_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784060712400,
+      "tag": "0004_narrow_fenris",
+      "breakpoints": true
     }
   ]
 }

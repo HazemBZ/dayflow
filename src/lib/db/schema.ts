@@ -141,6 +141,7 @@ export const quickNotes = sqliteTable("quick_notes", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
   bookmarked: integer("bookmarked", { mode: "boolean" }).default(false),
+  archived: integer("archived", { mode: "boolean" }).default(false),
 });
 
 // ─── Bug Notes (secret — shift+click notes popover) ─────────────────────────
