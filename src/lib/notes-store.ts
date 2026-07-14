@@ -1,4 +1,4 @@
-import { getNotes, addNote, removeNote, updateNote, toggleBookmark as toggleBookmarkAction, type NoteRow } from "@/lib/actions/notes";
+import { getNotes, addNote, removeNote, updateNote, toggleBookmark as toggleBookmarkAction, toggleArchive as toggleArchiveAction, type NoteRow } from "@/lib/actions/notes";
 
 export type Note = NoteRow;
 export type NotesSnapshot = readonly Note[];
@@ -31,7 +31,7 @@ export const notesStore = {
 
   /** Fetch all notes from DB — call once on mount. */
   async load() {
-    const notes = await getNotes();
+    const notes = await getNotes(true /* includeArchived */);
     _notes = notes;
     _loaded = true;
     _lastSnapshotKey = "";
@@ -69,6 +69,15 @@ export const notesStore = {
     const updated = await toggleBookmarkAction(id);
     _notes = _notes.map((n) =>
       n.id === id ? { ...n, bookmarked: updated.bookmarked, updatedAt: updated.updatedAt } : n,
+    );
+    _lastSnapshotKey = "";
+    notify();
+  },
+
+  async toggleArchive(id: string) {
+    const updated = await toggleArchiveAction(id);
+    _notes = _notes.map((n) =>
+      n.id === id ? { ...n, archived: updated.archived, updatedAt: updated.updatedAt } : n,
     );
     _lastSnapshotKey = "";
     notify();
