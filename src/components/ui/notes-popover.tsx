@@ -423,6 +423,7 @@ export function NotesPopover() {
           </div>
 
           {/* Editor / Preview area */}
+          <div className="overflow-y-auto max-h-[55vh]">
           {previewMode ? (
             <div className={mdPreviewStyles}>
               <ReactMarkdown
@@ -447,6 +448,7 @@ export function NotesPopover() {
               }}
             />
           )}
+          </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={handleDialogClose}>

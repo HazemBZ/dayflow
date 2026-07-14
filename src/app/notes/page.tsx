@@ -338,6 +338,7 @@ export default function NotesPage() {
             </button>
           </div>
 
+          <div className="overflow-y-auto max-h-[55vh]">
           {previewMode ? (
             <div className={mdPreviewStyles}>
               <ReactMarkdown
@@ -362,6 +363,7 @@ export default function NotesPage() {
               }}
             />
           )}
+          </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={handleDialogClose}>

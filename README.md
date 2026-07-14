@@ -70,12 +70,18 @@ No external setup needed — the app uses a local SQLite file (`data.db`).
 # Generate migrations from schema
 pnpm db:generate
 
-# Push schema to SQLite
-pnpm db:push
+# Apply migrations to SQLite
+pnpm db:migrate
 
 # Open Drizzle Studio (GUI)
 pnpm db:studio
 ```
+
+> **Don't use `db:push`** — it creates tables in the DB without tracking
+> them in `__drizzle_migrations`, breaking the deploy pipeline
+> (`update.sh` runs `migrate.mjs` which replays migration files and
+> fails when tables already exist). Use `db:generate` + `db:migrate`
+> consistently in both dev and production.
 
 #### Docker
 
@@ -109,8 +115,9 @@ src/
 | `pnpm build` | Production build |
 | `pnpm start` | Start production server |
 | `pnpm lint` | Run ESLint |
-| `pnpm db:push` | Push schema to DB |
-| `pnpm db:studio` | Open Drizzle Studio |
-| `pnpm db:migrate` | Run migrations |
+| `pnpm db:generate` | Generate migration files from schema changes |
+| `pnpm db:migrate` | Apply pending migrations to DB |
+| `pnpm db:studio` | Open Drizzle Studio (GUI) |
+| `node scripts/migrate.mjs` | Production migration (runs in update.sh + service) |
 
 </details>
