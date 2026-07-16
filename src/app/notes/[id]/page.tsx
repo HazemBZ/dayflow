@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Archive, ArchiveRestore, X, Plus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -77,6 +77,11 @@ export default function NoteDetailPage() {
   // Delete state
   const [deleting, setDeleting] = useState(false);
 
+  // Tag state
+  const [tagInput, setTagInput] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     // Try from store first (faster), fallback to server
     const fromStore = notesStore.getAll().find((n) => n.id === noteId);
@@ -111,6 +116,12 @@ export default function NoteDetailPage() {
     }
   }, [editing]);
 
+  useEffect(() => {
+    if (showTagInput && tagInputRef.current) {
+      setTimeout(() => tagInputRef.current?.focus(), 100);
+    }
+  }, [showTagInput]);
+
   async function handleSave() {
     const text = draft.trim();
     if (!text || !note) return;
@@ -130,6 +141,34 @@ export default function NoteDetailPage() {
     setDraft(note.text);
     setPreviewMode(false);
     setEditing(true);
+  }
+
+  // ── Tag handlers ──────────────────────────────────────────────────────
+
+  async function addTag(tag: string) {
+    if (!note || !tag.trim()) return;
+    const clean = tag.trim().toLowerCase();
+    if (note.tags.includes(clean)) return;
+    const next = [...note.tags, clean];
+    await notesStore.setTags(note.id, next);
+    setTagInput("");
+    setShowTagInput(false);
+  }
+
+  async function removeTag(tag: string) {
+    if (!note) return;
+    const next = note.tags.filter((t) => t !== tag);
+    await notesStore.setTags(note.id, next);
+  }
+
+  function handleTagKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === "Escape") {
+      setShowTagInput(false);
+      setTagInput("");
+    }
   }
 
   // ── Keyboard shortcut: Ctrl+E toggles editing ─────────────────────────
@@ -311,12 +350,59 @@ export default function NoteDetailPage() {
       ) : (
         /* ── Read-only view ── */
         <>
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
             <p className="text-xs text-muted-foreground">
               Created {formatFullTime(note.createdAt)}
               {note.updatedAt !== note.createdAt &&
                 ` · Updated ${formatFullTime(note.updatedAt)}`}
             </p>
+
+            {/* Tags */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {note.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="inline-flex size-3.5 items-center justify-center rounded-full hover:bg-muted-foreground/20"
+                    aria-label={`Remove tag ${tag}`}
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                </span>
+              ))}
+              {showTagInput ? (
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={() => {
+                    if (tagInput.trim()) {
+                      addTag(tagInput);
+                    } else {
+                      setShowTagInput(false);
+                    }
+                  }}
+                  placeholder="tag name"
+                  className="h-5 w-24 rounded-full border border-input bg-transparent px-2.5 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowTagInput(true)}
+                  className="inline-flex size-5 items-center justify-center rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+                  aria-label="Add tag"
+                >
+                  <Plus className="size-3" />
+                </button>
+              )}
+            </div>
           </div>
 
           <article className={mdStyles}>

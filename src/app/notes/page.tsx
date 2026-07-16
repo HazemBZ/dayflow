@@ -65,12 +65,20 @@ export default function NotesPage() {
   const [deleteNote, setDeleteNote] = useState<Note | null>(null);
   const [showBookmarked, setShowBookmarked] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [draft, setDraft] = useState("");
   const [previewMode, setPreviewMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Derive all unique tags across notes
+  const allTags = [...new Set(notes.flatMap((n) => n.tags))].sort();
+
   const baseNotes = showArchived ? notes.filter((n) => n.archived) : notes.filter((n) => !n.archived);
-  const filteredNotes = showBookmarked ? baseNotes.filter((n) => n.bookmarked) : baseNotes;
+  const tagFiltered = selectedTags.length > 0
+    ? baseNotes.filter((n) => selectedTags.every((t) => n.tags.includes(t)))
+    : baseNotes;
+  const filteredNotes = showBookmarked ? tagFiltered.filter((n) => n.bookmarked) : tagFiltered;
 
   const dialogOpen = createOpen || editNote !== null;
 
@@ -154,6 +162,11 @@ export default function NotesPage() {
                 : showBookmarked
                   ? `${filteredNotes.length} bookmarked`
                   : `${filteredNotes.length} note${filteredNotes.length !== 1 ? "s" : ""}`}
+              {selectedTags.length > 0 && (
+                <span className="ml-1.5">
+                  · tagged with <span className="font-medium">{selectedTags.join(", ")}</span>
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -185,6 +198,113 @@ export default function NotesPage() {
       maxWidth="max-w-3xl"
       scrollContentClass="space-y-4 pt-6"
     >
+      {/* Tags filter */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          {/* Dropdown toggle */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowTagDropdown((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full border border-input bg-background px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {selectedTags.length === 0 ? "All tags" : `Tags (${selectedTags.length})`}
+              <svg
+                className={cn("size-3 transition-transform", showTagDropdown && "rotate-180")}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {showTagDropdown && (
+              <>
+                {/* Backdrop to close */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowTagDropdown(false)}
+                />
+                <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border bg-popover p-1.5 shadow-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTags([]);
+                      setShowTagDropdown(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      selectedTags.length === 0
+                        ? "bg-primary text-primary-foreground"
+                        : "text-popover-foreground hover:bg-muted",
+                    )}
+                  >
+                    All tags
+                  </button>
+                  {allTags.map((tag) => {
+                    const active = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTags((prev) =>
+                            prev.includes(tag)
+                              ? prev.filter((t) => t !== tag)
+                              : [...prev, tag],
+                          );
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors",
+                          active
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-popover-foreground hover:bg-muted",
+                        )}
+                      >
+                        {active ? (
+                          <svg className="size-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : (
+                          <span className="size-3 shrink-0" />
+                        )}
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Selected tags as pills */}
+          {selectedTags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTags((prev) => prev.filter((t) => t !== tag))
+                }
+                className="inline-flex size-3.5 items-center justify-center rounded-full hover:bg-primary/20"
+                aria-label={`Remove ${tag} filter`}
+              >
+                <svg className="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
