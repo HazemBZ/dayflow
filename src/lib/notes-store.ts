@@ -1,4 +1,4 @@
-import { getNotes, addNote, removeNote, updateNote, toggleBookmark as toggleBookmarkAction, toggleArchive as toggleArchiveAction, type NoteRow } from "@/lib/actions/notes";
+import { getNotes, addNote, removeNote, updateNote, toggleBookmark as toggleBookmarkAction, toggleArchive as toggleArchiveAction, setNoteTags, type NoteRow } from "@/lib/actions/notes";
 
 export type Note = NoteRow;
 export type NotesSnapshot = readonly Note[];
@@ -16,7 +16,7 @@ let _lastSnapshot: NotesSnapshot = _emptySnapshot;
 let _lastSnapshotKey = "";
 
 function serialize(notes: Note[]): string {
-  return JSON.stringify(notes.map((n) => [n.id, n.text, n.createdAt, n.updatedAt]));
+  return JSON.stringify(notes.map((n) => [n.id, n.text, n.createdAt, n.updatedAt, n.tags]));
 }
 
 function notify() {
@@ -78,6 +78,15 @@ export const notesStore = {
     const updated = await toggleArchiveAction(id);
     _notes = _notes.map((n) =>
       n.id === id ? { ...n, archived: updated.archived, updatedAt: updated.updatedAt } : n,
+    );
+    _lastSnapshotKey = "";
+    notify();
+  },
+
+  async setTags(id: string, tags: string[]) {
+    const updated = await setNoteTags(id, tags);
+    _notes = _notes.map((n) =>
+      n.id === id ? { ...n, tags: updated.tags, updatedAt: updated.updatedAt } : n,
     );
     _lastSnapshotKey = "";
     notify();

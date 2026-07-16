@@ -12,7 +12,29 @@ export type NoteRow = {
   updatedAt: number;
   bookmarked: boolean;
   archived: boolean;
+  tags: string[];
 };
+
+function parseTags(raw: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatNote(r: typeof quickNotes.$inferSelect): NoteRow {
+  return {
+    id: r.id,
+    text: r.text,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    bookmarked: r.bookmarked ?? false,
+    archived: r.archived ?? false,
+    tags: parseTags(r.tags),
+  };
+}
 
 export async function getNotes(includeArchived = false): Promise<NoteRow[]> {
   const rows = await db
@@ -20,17 +42,16 @@ export async function getNotes(includeArchived = false): Promise<NoteRow[]> {
     .from(quickNotes)
     .orderBy(desc(quickNotes.createdAt));
   return rows
-    .map((r) => ({ ...r, bookmarked: r.bookmarked ?? false, archived: r.archived ?? false }))
+    .map(formatNote)
     .filter((r) => includeArchived || !r.archived);
 }
 
-export async function addNote(text: string): Promise<NoteRow> {
+export async function addNote(text: string, tags: string[] = []): Promise<NoteRow> {
   const now = Date.now();
   const id = `note_${now}_${Math.random().toString(36).slice(2, 8)}`;
-  const note: NoteRow = { id, text, createdAt: now, updatedAt: now, bookmarked: false, archived: false };
-  await db.insert(quickNotes).values(note);
+  await db.insert(quickNotes).values({ id, text, tags: JSON.stringify(tags), createdAt: now, updatedAt: now, bookmarked: false, archived: false });
   revalidatePath("/");
-  return note;
+  return { id, text, createdAt: now, updatedAt: now, bookmarked: false, archived: false, tags };
 }
 
 export async function getNote(id: string): Promise<NoteRow | null> {
@@ -40,7 +61,7 @@ export async function getNote(id: string): Promise<NoteRow | null> {
     .where(eq(quickNotes.id, id))
     .limit(1);
   const row = rows[0];
-  return row ? { ...row, bookmarked: row.bookmarked ?? false, archived: row.archived ?? false } : null;
+  return row ? formatNote(row) : null;
 }
 
 export async function removeNote(id: string) {
@@ -70,7 +91,7 @@ export async function toggleBookmark(id: string): Promise<NoteRow> {
     .set({ bookmarked: next, updatedAt: Date.now() })
     .where(eq(quickNotes.id, id));
   revalidatePath("/");
-  return { ...note, bookmarked: next, archived: note.archived ?? false };
+  return { ...formatNote(note), bookmarked: next };
 }
 
 export async function toggleArchive(id: string): Promise<NoteRow> {
@@ -87,5 +108,22 @@ export async function toggleArchive(id: string): Promise<NoteRow> {
     .set({ archived: next, updatedAt: Date.now() })
     .where(eq(quickNotes.id, id));
   revalidatePath("/");
-  return { ...note, bookmarked: note.bookmarked ?? false, archived: next };
+  return { ...formatNote(note), archived: next };
+}
+
+export async function setNoteTags(id: string, tags: string[]): Promise<NoteRow> {
+  const rows = await db
+    .select()
+    .from(quickNotes)
+    .where(eq(quickNotes.id, id))
+    .limit(1);
+  const note = rows[0];
+  if (!note) throw new Error("Note not found");
+  const clean = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+  await db
+    .update(quickNotes)
+    .set({ tags: JSON.stringify(clean), updatedAt: Date.now() })
+    .where(eq(quickNotes.id, id));
+  revalidatePath("/");
+  return { ...formatNote(note), tags: clean };
 }
