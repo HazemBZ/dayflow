@@ -2,7 +2,7 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { dailyLogs, skillSessions, protectionLogs } from "@/lib/db/schema";
+import { dailyLogs, skillSessions, protectionLogs, outcomeSubtasks } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 
 // ─── Daily Log ────────────────────────────────────────────────────────────
@@ -130,6 +130,86 @@ export async function getSkillSessionsForWeek(weekStart: string) {
         sql`${skillSessions.date} <= ${endStr}`,
       ),
     );
+}
+
+// ─── Outcome Subtasks ─────────────────────────────────────────────────────
+
+export async function getOutcomeSubtaskCounts(date: string) {
+  const rows = await db
+    .select({
+      outcomeIndex: outcomeSubtasks.outcomeIndex,
+      completed: outcomeSubtasks.completed,
+    })
+    .from(outcomeSubtasks)
+    .where(eq(outcomeSubtasks.date, date));
+
+  const counts: Record<number, { done: number; total: number }> = {
+    1: { done: 0, total: 0 },
+    2: { done: 0, total: 0 },
+    3: { done: 0, total: 0 },
+  };
+  for (const row of rows) {
+    counts[row.outcomeIndex].total += 1;
+    if (row.completed) counts[row.outcomeIndex].done += 1;
+  }
+  return counts as Record<1 | 2 | 3, { done: number; total: number }>;
+}
+
+export async function getOutcomeSubtasks(date: string, outcomeIndex: number) {
+  return await db
+    .select()
+    .from(outcomeSubtasks)
+    .where(
+      and(
+        eq(outcomeSubtasks.date, date),
+        eq(outcomeSubtasks.outcomeIndex, outcomeIndex),
+      ),
+    )
+    .orderBy(outcomeSubtasks.sortOrder);
+}
+
+export async function createOutcomeSubtask(params: {
+  date: string;
+  outcomeIndex: number;
+  text: string;
+}) {
+  const existing = await db
+    .select({ maxSort: outcomeSubtasks.sortOrder })
+    .from(outcomeSubtasks)
+    .where(
+      and(
+        eq(outcomeSubtasks.date, params.date),
+        eq(outcomeSubtasks.outcomeIndex, params.outcomeIndex),
+      ),
+    )
+    .orderBy(outcomeSubtasks.sortOrder)
+    .limit(1);
+
+  const nextSort = (existing[0]?.maxSort ?? -1) + 1;
+
+  await db.insert(outcomeSubtasks).values({
+    date: params.date,
+    outcomeIndex: params.outcomeIndex,
+    text: params.text,
+    sortOrder: nextSort,
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateOutcomeSubtask(
+  id: number,
+  data: { text?: string; completed?: boolean },
+) {
+  await db.update(outcomeSubtasks).set(data).where(eq(outcomeSubtasks.id, id));
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deleteOutcomeSubtask(id: number) {
+  await db.delete(outcomeSubtasks).where(eq(outcomeSubtasks.id, id));
+  revalidatePath("/");
+  return { success: true };
 }
 
 // ─── Protection Logs ──────────────────────────────────────────────────────
