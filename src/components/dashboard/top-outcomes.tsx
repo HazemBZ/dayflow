@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, startTransition } from "react";
-import { Crown, Save } from "lucide-react";
+import { Crown, Save, ListChecks } from "lucide-react";
+import { getOutcomeSubtaskCounts } from "@/lib/actions/daily";
 import {
   DndContext,
   closestCenter,
@@ -25,9 +26,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SectionTooltip } from "@/components/ui/section-tooltip";
+import { OutcomeSubtasksDialog } from "@/components/dashboard/outcome-subtasks-dialog";
+
 import { cn } from "@/lib/utils";
 
 interface TopOutcomesProps {
+  date: string;
   outcomes: [string | null, string | null, string | null];
   completed: [boolean, boolean, boolean];
   onSave: (index: number, text: string) => Promise<void>;
@@ -44,9 +48,12 @@ function SortableCard({
   dirty,
   saving,
   label,
+  viewMode,
+  subtaskProgress,
   onValueChange,
   onSave,
   onToggle,
+  onSubtasksClick,
 }: {
   id: string;
   index: number;
@@ -55,9 +62,12 @@ function SortableCard({
   dirty: boolean;
   saving: boolean;
   label: string;
+  viewMode?: "simple" | "full";
+  subtaskProgress?: { done: number; total: number };
   onValueChange: (index: number, value: string) => void;
   onSave: (index: number) => void;
   onToggle: (index: number, completed: boolean) => void;
+  onSubtasksClick: (index: number) => void;
 }) {
   const {
     attributes,
@@ -86,65 +96,78 @@ function SortableCard({
         isDragging && "z-10 opacity-50 ring-2 ring-amber-500",
       )}
     >
-      <CardContent className="flex items-center gap-3 py-3">
-        <button
-          ref={setActivatorNodeRef}
-          {...listeners}
-          {...attributes}
-          className="cursor-grab touch-none rounded-sm p-0.5 active:cursor-grabbing hover:bg-amber-500/10"
-          aria-label={`Drag to reorder outcome ${index + 1}`}
-        >
-          <Crown
-            className={cn(
-              "h-4 w-4 shrink-0 transition-all",
-              done
-                ? "text-amber-500 drop-shadow-[0_0_4px_hsl(45_100%_50%_/_0.5)]"
-                : "text-amber-500/60",
-            )}
-            fill="currentColor"
-            aria-hidden="true"
-          />
-        </button>
-        <Checkbox
-          checked={done}
-          onCheckedChange={(checked) => onToggle(index, checked === true)}
-          aria-label={`Outcome ${index + 1} completed`}
-        />
-        <Input
-          value={value}
-          onChange={(e) => onValueChange(index, e.target.value)}
-          onBlur={() => {
-            if (dirty) onSave(index);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onSave(index);
-            }
-          }}
-          placeholder={`${label} outcome...`}
-          className={cn(
-            "h-auto border-0 bg-transparent px-0 py-0.5 text-sm leading-snug shadow-none focus-visible:ring-0 rounded-none",
-            done && "text-muted-foreground line-through",
-          )}
-        />
-        {dirty && (
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => onSave(index)}
-            disabled={saving}
-            aria-label={`Save outcome ${index + 1}`}
+      <CardContent className="flex flex-col gap-1 py-1.5">
+        <div className="flex items-center gap-2">
+          <button
+            ref={setActivatorNodeRef}
+            {...listeners}
+            {...attributes}
+            className="cursor-grab touch-none rounded-sm p-0.5 active:cursor-grabbing hover:bg-amber-500/10"
+            aria-label={`Drag to reorder outcome ${index + 1}`}
           >
-            <Save className="h-3 w-3" />
-          </Button>
-        )}
+            <Crown
+              className={cn(
+                "h-4 w-4 shrink-0 transition-all",
+                done
+                  ? "text-amber-500 drop-shadow-[0_0_4px_hsl(45_100%_50%_/_0.5)]"
+                  : "text-amber-500/60",
+              )}
+              fill="currentColor"
+              aria-hidden="true"
+            />
+          </button>
+          <Checkbox
+            checked={done}
+            onCheckedChange={(checked) => onToggle(index, checked === true)}
+            aria-label={`Outcome ${index + 1} completed`}
+          />
+          <Input
+            value={value}
+            onChange={(e) => onValueChange(index, e.target.value)}
+            onBlur={() => {
+              if (dirty) onSave(index);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSave(index);
+              }
+            }}
+            placeholder={`${label} outcome...`}
+            className={cn(
+              "h-auto border-0 bg-transparent px-0 py-0.5 text-sm leading-snug shadow-none focus-visible:ring-0 rounded-none",
+              done && "text-muted-foreground line-through",
+            )}
+          />
+          {dirty && (
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => onSave(index)}
+              disabled={saving}
+              aria-label={`Save outcome ${index + 1}`}
+            >
+              <Save className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+        <button
+          onClick={() => onSubtasksClick(index)}
+          className="self-start flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground/60 transition-colors hover:text-amber-500 hover:bg-amber-500/5"
+          aria-label={`Subtasks for ${label} outcome`}
+        >
+          <ListChecks className="h-3 w-3" />
+          {subtaskProgress && subtaskProgress.total > 0
+            ? `${subtaskProgress.done}/${subtaskProgress.total} done`
+            : ""}
+        </button>
       </CardContent>
     </Card>
   );
 }
 
 export function TopOutcomes({
+  date,
   outcomes,
   completed,
   onSave,
@@ -167,6 +190,20 @@ export function TopOutcomes({
   const [, setActiveId] = useState<string | null>(null);
   const [itemIds, setItemIds] = useState<string[]>(["outcome-0", "outcome-1", "outcome-2"]);
   const labels = ["First", "Second", "Third"];
+  const [dialogIndex, setDialogIndex] = useState<number | null>(null);
+  const [subtaskCounts, setSubtaskCounts] = useState<
+    Record<number, { done: number; total: number }>
+  >({});
+
+  const refreshSubtaskCounts = useCallback(() => {
+    getOutcomeSubtaskCounts(date).then((counts) => {
+      startTransition(() => setSubtaskCounts(counts));
+    });
+  }, [date]);
+
+  useEffect(() => {
+    refreshSubtaskCounts();
+  }, [refreshSubtaskCounts]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -321,14 +358,31 @@ export function TopOutcomes({
                 dirty={dirty[i]}
                 saving={saving[i]}
                 label={labels[i]}
+                viewMode={viewMode}
+                subtaskProgress={subtaskCounts[i + 1]}
                 onValueChange={handleValueChange}
                 onSave={handleSave}
                 onToggle={handleToggle}
+                onSubtasksClick={setDialogIndex}
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
+
+      {dialogIndex !== null && (
+        <OutcomeSubtasksDialog
+          date={date}
+          outcomeIndex={dialogIndex}
+          outcomeLabel={labels[dialogIndex]}
+          outcomeText={values[dialogIndex]}
+          open={dialogIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) setDialogIndex(null);
+          }}
+          onSubtaskChange={refreshSubtaskCounts}
+        />
+      )}
     </section>
   );
 }

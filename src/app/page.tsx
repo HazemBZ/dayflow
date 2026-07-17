@@ -271,6 +271,7 @@ export default function DashboardPage() {
       <Separator />
 
       <TopOutcomes
+        date={dateStr}
         outcomes={[
           outcomes[0].clean,
           outcomes[1].clean,
