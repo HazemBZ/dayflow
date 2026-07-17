@@ -156,6 +156,17 @@ export const bugNotes = sqliteTable("bug_notes", {
   status: text("status", { enum: ["open", "in-progress", "resolved", "closed"] }).default("open"),
 });
 
+// ─── Outcome Subtasks ──────────────────────────────────────────────────────
+export const outcomeSubtasks = sqliteTable("outcome_subtasks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  outcomeIndex: integer("outcome_index").notNull(), // 1, 2, or 3
+  text: text("text").notNull(),
+  completed: integer("completed", { mode: "boolean" }).default(false),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
 // ─── Showcase Project Milestones ────────────────────────────────────────────
 export const showcaseMilestones = sqliteTable("showcase_milestones", {
   id: integer("id").primaryKey({ autoIncrement: true }),

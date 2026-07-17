@@ -43,6 +43,13 @@
       "when": 1784201026893,
       "tag": "0005_giant_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784290846778,
+      "tag": "0006_slimy_thanos",
+      "breakpoints": true
     }
   ]
 }
