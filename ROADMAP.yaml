@@ -153,6 +153,8 @@ roadmap:
     milestones:
       - name: Quick notes moved from localStorage to DB
         status: completed
+      - name: Canvas spatial view for notes
+        status: in_progress
     tasks:
       - name: Add quick_notes table to Drizzle schema
         status: completed
@@ -163,6 +165,20 @@ roadmap:
       - name: Rewrite notes-store to use server actions
         status: completed
       - name: Update NotesPopover for async DB loading
+        status: completed
+      - name: Build verification passes
+        status: completed
+      - name: Add canvas_nodes + canvas_edges tables to schema
+        status: completed
+      - name: Generate + apply migration for canvas tables
+        status: completed
+      - name: Create server actions for canvas CRUD
+        status: completed
+      - name: Create canvas-store (reactive, subscribe/getSnapshot)
+        status: completed
+      - name: Build /canvas page with React Flow
+        status: completed
+      - name: Add Canvas nav item to sidebar
         status: completed
       - name: Build verification passes
         status: completed
