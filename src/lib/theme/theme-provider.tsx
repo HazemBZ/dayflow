@@ -42,19 +42,33 @@ function applyFont(fontId: FontId) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  // SSR-safe defaults — match what server renders. Rehydrate from
+  // localStorage after hydration to avoid SSR-vs-client mismatch.
   const [theme, setThemeState] = useState<ThemeClass>("theme-default");
   const [font, setFontState] = useState<FontId>("geist");
 
-  // Hydrate from localStorage after mount to match SSR output and avoid
-  // hydration mismatches on theme/font buttons.
+  // One post-hydration pass: rehydrate + apply to DOM immediately,
+  // avoiding the one-frame flash of two separate effects.
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (isValidTheme(savedTheme)) setThemeState(savedTheme);
+    const resolvedTheme = isValidTheme(localStorage.getItem("theme"))
+      ? (localStorage.getItem("theme") as ThemeClass)
+      : "theme-default";
     const savedFont = localStorage.getItem("font");
-    if (isValidFontId(savedFont)) setFontState(savedFont);
+    const resolvedFont = isValidFontId(savedFont) ? savedFont : "geist";
+
+    // Apply to DOM synchronously (before React paints)
+    for (const th of THEMES) {
+      document.documentElement.classList.remove(th.className);
+    }
+    document.documentElement.classList.add(resolvedTheme);
+    applyFont(resolvedFont);
+
+    // Sync state (triggers re-render, but DOM already matches)
+    setThemeState(resolvedTheme);
+    setFontState(resolvedFont as FontId);
   }, []);
 
-  // Apply theme class + font variable to <html>
+  // Keep DOM in sync when user changes theme/font via context
   useEffect(() => {
     for (const th of THEMES) {
       document.documentElement.classList.remove(th.className);

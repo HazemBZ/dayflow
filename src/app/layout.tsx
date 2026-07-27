@@ -59,6 +59,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${atkinsonHyperlegible.variable} ${lora.variable} ${merriweather.variable} h-full antialiased`}
     >
       <body className="min-h-full">
