@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique, primaryKey } from "drizzle-orm/sqlite-core";
 
 // ─── Daily Logs ─────────────────────────────────────────────────────────────
 export const dailyLogs = sqliteTable("daily_logs", {
@@ -133,6 +133,56 @@ export const fieldConfig = sqliteTable("field_config", {
   active: integer("active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
+
+// ─── Canvases ─────────────────────────────────────────────────────────────────
+export const canvases = sqliteTable("canvases", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  viewportX: real("viewport_x"),
+  viewportY: real("viewport_y"),
+  viewportZoom: real("viewport_zoom"),
+  sidebarOpen: integer("sidebar_open", { mode: "boolean" }),
+  minimapCollapsed: integer("minimap_collapsed", { mode: "boolean" }),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Canvas Nodes ────────────────────────────────────────────────────────────
+export const canvasNodes = sqliteTable("canvas_nodes", {
+  canvasId: text("canvas_id").notNull(),
+  noteId: text("note_id").notNull(),
+  x: real("x").notNull().default(0),
+  y: real("y").notNull().default(0),
+  frameId: text("frame_id"),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.canvasId, table.noteId] }),
+}));
+
+// ─── Canvas Frames ──────────────────────────────────────────────────────────
+export const canvasFrames = sqliteTable("canvas_frames", {
+  id: text("id").primaryKey(),
+  canvasId: text("canvas_id").notNull(),
+  name: text("name").notNull().default("Frame"),
+  x: real("x").notNull().default(0),
+  y: real("y").notNull().default(0),
+  width: real("width").notNull().default(400),
+  height: real("height").notNull().default(300),
+  color: text("color"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Canvas Edges ────────────────────────────────────────────────────────────
+export const canvasEdges = sqliteTable("canvas_edges", {
+  id: text("id").primaryKey(),
+  canvasId: text("canvas_id").notNull(),
+  sourceNoteId: text("source_note_id").notNull(),
+  targetNoteId: text("target_note_id").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  unqSourceTarget: unique().on(table.canvasId, table.sourceNoteId, table.targetNoteId),
+}));
 
 // ─── Quick Notes ─────────────────────────────────────────────────────────────
 export const quickNotes = sqliteTable("quick_notes", {
