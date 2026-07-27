@@ -10,6 +10,7 @@ import {
   Clock,
   History,
   Settings,
+  Workflow,
   Menu,
   Palette,
   Eye,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { title: "Horizon", href: "/horizon", icon: Map },
   { title: "Budget", href: "/budget", icon: Clock },
   { title: "History", href: "/history", icon: History },
+  { title: "Canvas", href: "/canvas", icon: Workflow },
   { title: "Notes", href: "/notes", icon: StickyNote },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
@@ -192,7 +194,7 @@ function SidebarContent() {
                   onClick={() => setTheme(t.className as ThemeClass)}
                   title={t.name}
                   className={cn(
-                    "h-6 w-6 rounded-full ring-offset-2 ring-offset-background transition-all hover:scale-110",
+                    "h-6 w-6 rounded-full border border-border ring-offset-2 ring-offset-background transition-all hover:scale-110",
                     active && "ring-2 ring-foreground scale-110",
                   )}
                   style={{ backgroundColor: t.swatch }}
