@@ -11,6 +11,7 @@ import {
   Panel,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type Connection,
   type Node,
   type Edge,
@@ -19,20 +20,21 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { notesStore, type Note } from "@/lib/notes-store";
-import { canvasStore, type CanvasNodeRow, type CanvasEdgeRow, type CanvasRow, type CanvasFrameRow } from "@/lib/canvas-store";
+import { canvasStore, type CanvasNodeRow, type CanvasEdgeRow, type CanvasRow, type CanvasFrameRow, type CanvasGenericNodeRow } from "@/lib/canvas-store";
 import { NoteNode, type NoteNodeType, type NoteNodeData } from "@/components/canvas/note-node";
 import { FrameNode, type FrameNodeType, type FrameNodeData } from "@/components/canvas/frame-node";
+import { GenericNode, type GenericNodeType, type GenericNodeData } from "@/components/canvas/generic-node";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Plus, StickyNote, ExternalLink, ExternalLinkIcon, Trash2, Maximize2, Minimize2, FolderOpen, FolderOutput } from "lucide-react";
+import { Plus, StickyNote, ExternalLink, ExternalLinkIcon, Trash2, Maximize2, Minimize2, FolderOpen, FolderOutput, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CanvasSidebar } from "@/components/canvas/canvas-sidebar";
 
-const nodeTypes = { note: NoteNode, frame: FrameNode };
+const nodeTypes = { note: NoteNode, frame: FrameNode, generic: GenericNode };
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
@@ -45,16 +47,25 @@ function CanvasPageInner() {
   const [canvasNodes, setCanvasNodes] = useState<CanvasNodeRow[]>([]);
   const [canvasEdges, setCanvasEdges] = useState<CanvasEdgeRow[]>([]);
   const [canvasFrames, setCanvasFrames] = useState<CanvasFrameRow[]>([]);
+  const [canvasGenericNodes, setCanvasGenericNodes] = useState<CanvasGenericNodeRow[]>([]);
   const [canvases, setCanvases] = useState<CanvasRow[]>([]);
   const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<(NoteNodeType | FrameNodeType)>([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<(NoteNodeType | FrameNodeType | GenericNodeType)>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // UI state restored from canvas
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
+
+  // Top bar rename
+  const [isEditingTopBar, setIsEditingTopBar] = useState(false);
+  const [topBarEditName, setTopBarEditName] = useState("");
+  const [topBarRenameError, setTopBarRenameError] = useState<string | null>(null);
+  const topBarInputRef = useRef<HTMLInputElement>(null);
+  const topBarRenameSubmittingRef = useRef(false);
+  const topBarRenameCancelledRef = useRef(false);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -64,9 +75,33 @@ function CanvasPageInner() {
     y: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const reactFlowInstance = useReactFlow();
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const frameStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
   const frameChildrenRef = useRef<Map<string, Array<{ noteId: string; x: number; y: number }>>>(new Map());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const addCounter = useRef(0);
+
+  function getViewportCenter(): { x: number; y: number } {
+    if (!canvasContainerRef.current) return { x: 0, y: 0 };
+    const rect = canvasContainerRef.current.getBoundingClientRect();
+    return reactFlowInstance.screenToFlowPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+  }
+
+  // Vogel (sunflower) spiral — even density, no overlap, no unbounded drift
+  function getCascadePosition(center: { x: number; y: number }): { x: number; y: number } {
+    const count = addCounter.current++;
+    const goldenAngle = 2.39996; // 137.508° in radians
+    const radius = 30 * Math.sqrt(count);
+    const angle = count * goldenAngle;
+    return {
+      x: center.x + radius * Math.cos(angle),
+      y: center.y + radius * Math.sin(angle),
+    };
+  }
 
   // ── Load data ──────────────────────────────────────────────────────────
 
@@ -82,6 +117,7 @@ function CanvasPageInner() {
         setCanvasNodes([...canvasStore.getNodes()]);
         setCanvasEdges([...canvasStore.getEdges()]);
         setCanvasFrames([...canvasStore.getFrames()]);
+        setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
         setCanvases([...canvasStore.getCanvases()]);
         setActiveCanvasId(canvasStore.activeCanvasId);
         const active = canvasStore.activeCanvasId;
@@ -106,6 +142,7 @@ function CanvasPageInner() {
       setCanvasNodes([...canvasStore.getNodes()]);
       setCanvasEdges([...canvasStore.getEdges()]);
       setCanvasFrames([...canvasStore.getFrames()]);
+      setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
       setCanvases([...canvasStore.getCanvases()]);
       setActiveCanvasId(canvasStore.activeCanvasId);
     });
@@ -126,6 +163,7 @@ function CanvasPageInner() {
         setCanvasNodes([...canvasStore.getNodes()]);
         setCanvasEdges([...canvasStore.getEdges()]);
         setCanvasFrames([...canvasStore.getFrames()]);
+        setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
         setActiveCanvasId(id);
         setLoading(false);
       });
@@ -174,7 +212,24 @@ function CanvasPageInner() {
       };
     });
 
-    setRfNodes([...frameNodes, ...flowNodes]);
+    const genericFlowNodes = canvasGenericNodes.map((gn) => {
+      const existing = nodeMap.get(gn.id);
+      return {
+        id: gn.id,
+        type: "generic" as const,
+        position: existing
+          ? existing.position
+          : { x: gn.x, y: gn.y },
+        data: {
+          content: gn.content,
+          nodeId: gn.id,
+        } satisfies GenericNodeData,
+        selected: existing?.selected ?? false,
+        zIndex: gn.frameId ? 10 : 1,
+      };
+    });
+
+    setRfNodes([...frameNodes, ...flowNodes, ...genericFlowNodes]);
 
     const flowEdges = canvasEdges.map((ce) => ({
       id: ce.id,
@@ -186,7 +241,7 @@ function CanvasPageInner() {
     }));
     setRfEdges(flowEdges);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasNodes, canvasEdges, canvasFrames, notes]);
+  }, [canvasNodes, canvasEdges, canvasFrames, canvasGenericNodes, notes]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -194,14 +249,18 @@ function CanvasPageInner() {
     (_event: MouseEvent | TouchEvent, node: Node) => {
       if (node.type === "frame") {
         frameStartPos.current.set(node.id, { ...node.position });
-        const children = canvasNodes.filter((n) => n.frameId === node.id);
+        const noteChildren = canvasNodes.filter((n) => n.frameId === node.id);
+        const genericChildren = canvasGenericNodes.filter((n) => n.frameId === node.id);
         frameChildrenRef.current.set(
           node.id,
-          children.map((c) => ({ noteId: c.noteId, x: c.x, y: c.y })),
+          [
+            ...noteChildren.map((c) => ({ noteId: c.noteId, x: c.x, y: c.y })),
+            ...genericChildren.map((c) => ({ noteId: c.id, x: c.x, y: c.y })),
+          ],
         );
       }
     },
-    [canvasNodes],
+    [canvasNodes, canvasGenericNodes],
   );
 
   const onNodeDrag = useCallback(
@@ -241,9 +300,18 @@ function CanvasPageInner() {
             const baseChildren = frameChildrenRef.current.get(node.id);
             if (baseChildren) {
               await Promise.all(
-                baseChildren.map((child) =>
-                  canvasStore.upsertNode(child.noteId, child.x + dx, child.y + dy),
-                ),
+                baseChildren.map((child) => {
+                  const gn = canvasGenericNodes.find((g) => g.id === child.noteId);
+                  if (gn) {
+                    return canvasStore.upsertGenericNode(
+                      child.noteId,
+                      gn.content,
+                      child.x + dx,
+                      child.y + dy,
+                    );
+                  }
+                  return canvasStore.upsertNode(child.noteId, child.x + dx, child.y + dy);
+                }),
               );
             }
           }
@@ -261,9 +329,19 @@ function CanvasPageInner() {
         );
         return;
       }
+      if (node.type === "generic") {
+        const gn = canvasGenericNodes.find((g) => g.id === node.id);
+        await canvasStore.upsertGenericNode(
+          node.id,
+          gn?.content ?? "",
+          node.position.x,
+          node.position.y,
+        );
+        return;
+      }
       await canvasStore.upsertNode(node.id, node.position.x, node.position.y);
     },
-    [canvasFrames],
+    [canvasFrames, canvasGenericNodes],
   );
 
   const onConnect = useCallback(
@@ -309,6 +387,8 @@ function CanvasPageInner() {
     for (const node of nodes) {
       if (node.type === "frame") {
         canvasStore.removeFrame(node.id);
+      } else if (node.type === "generic") {
+        canvasStore.removeGenericNode(node.id);
       } else {
         canvasStore.removeNode(node.id);
       }
@@ -319,7 +399,7 @@ function CanvasPageInner() {
     (event: React.KeyboardEvent) => {
       if (event.key === "Enter") {
         const selected = rfNodes.find((n) => n.selected);
-        if (selected) {
+        if (selected && selected.type !== "generic") {
           router.push(`/notes/${selected.id}`);
         }
       }
@@ -344,19 +424,23 @@ function CanvasPageInner() {
 
   function handleContextMenuRemove() {
     if (!contextMenu) return;
-    canvasStore.removeNode(contextMenu.nodeId);
+    if (contextMenu.nodeType === "generic") {
+      canvasStore.removeGenericNode(contextMenu.nodeId);
+    } else {
+      canvasStore.removeNode(contextMenu.nodeId);
+    }
     setContextMenu(null);
   }
 
   function handleContextMenuGroupInFrame() {
     if (!contextMenu) return;
-    // Find all selected note nodes
-    const selectedNotes = rfNodes.filter(
-      (n) => n.selected && n.type === "note",
+    // Find all selected nodes (notes or generic)
+    const selectedNodes = rfNodes.filter(
+      (n) => n.selected && (n.type === "note" || n.type === "generic"),
     );
     const targetIds =
-      selectedNotes.length > 0
-        ? selectedNotes.map((n) => n.id)
+      selectedNodes.length > 0
+        ? selectedNodes.map((n) => n.id)
         : [contextMenu.nodeId];
     // Compute bounding box
     const relevant = rfNodes.filter((n) => targetIds.includes(n.id));
@@ -383,8 +467,13 @@ function CanvasPageInner() {
       for (const noteId of targetIds) {
         const node = canvasNodes.find((n) => n.noteId === noteId);
         if (node) {
-          // Save relative position
           canvasStore.setNodeFrame(noteId, frame.id);
+        } else {
+          // Could be a generic node
+          const gn = canvasGenericNodes.find((g) => g.id === noteId);
+          if (gn) {
+            canvasStore.setGenericNodeFrame(noteId, frame.id);
+          }
         }
       }
     });
@@ -392,7 +481,11 @@ function CanvasPageInner() {
 
   function handleContextMenuRemoveFromFrame() {
     if (!contextMenu) return;
-    canvasStore.setNodeFrame(contextMenu.nodeId, null);
+    if (contextMenu.nodeType === "generic") {
+      canvasStore.setGenericNodeFrame(contextMenu.nodeId, null);
+    } else {
+      canvasStore.setNodeFrame(contextMenu.nodeId, null);
+    }
     setContextMenu(null);
   }
 
@@ -419,13 +512,70 @@ function CanvasPageInner() {
   );
 
   async function handleAddNote(note: Note) {
-    // cascade position
-    const offset = canvasNodes.length * 30;
+    const pos = getCascadePosition(getViewportCenter());
     await canvasStore.upsertNode(
       note.id,
-      100 + offset,
-      100 + offset,
+      pos.x,
+      pos.y,
     );
+  }
+
+  async function handleAddGenericNode() {
+    const pos = getCascadePosition(getViewportCenter());
+    await canvasStore.upsertGenericNode(
+      undefined,
+      "",
+      pos.x,
+      pos.y,
+    );
+  }
+
+  // ── Top bar rename ────────────────────────────────────────────────────
+
+  function startTopBarEditing() {
+    if (!activeCanvasId) return;
+    const canvas = canvases.find((c) => c.id === activeCanvasId);
+    if (!canvas) return;
+    setTopBarRenameError(null);
+    setIsEditingTopBar(true);
+    setTopBarEditName(canvas.name);
+    setTimeout(() => topBarInputRef.current?.focus(), 50);
+  }
+
+  function cancelTopBarEditing() {
+    topBarRenameCancelledRef.current = true;
+    setTopBarRenameError(null);
+    setIsEditingTopBar(false);
+    setTopBarEditName("");
+  }
+
+  async function handleTopBarRename() {
+    if (!activeCanvasId || topBarRenameSubmittingRef.current) return;
+    const trimmed = topBarEditName.trim();
+    if (!trimmed) {
+      cancelTopBarEditing();
+      return;
+    }
+    topBarRenameSubmittingRef.current = true;
+    try {
+      await canvasStore.renameCanvas(activeCanvasId, trimmed);
+      cancelTopBarEditing();
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Unable to rename canvas.";
+      setTopBarRenameError(errMsg);
+      console.error("Canvas rename error:", error);
+    } finally {
+      topBarRenameSubmittingRef.current = false;
+    }
+  }
+
+  function handleTopBarBlur() {
+    if (topBarRenameCancelledRef.current) {
+      topBarRenameCancelledRef.current = false;
+      return;
+    }
+    if (topBarRenameSubmittingRef.current) return;
+    handleTopBarRename();
   }
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -450,7 +600,7 @@ function CanvasPageInner() {
   return (
     <div className="relative flex h-full w-full">
       {/* Canvas area */}
-      <div className="relative flex-1">
+      <div ref={canvasContainerRef} className="relative flex-1">
           <ReactFlow
             nodes={rfNodes}
             edges={rfEdges}
@@ -472,7 +622,7 @@ function CanvasPageInner() {
             minZoom={0.1}
             maxZoom={4}
             zIndexMode="manual"
-            deleteKeyCode="Backspace"
+            deleteKeyCode={["Backspace", "Delete"]}
             onEdgeDoubleClick={(event, edge) => {
               canvasStore.removeEdge(edge.id);
             }}
@@ -522,21 +672,58 @@ function CanvasPageInner() {
 
         {/* Top bar */}
         <div className="absolute left-4 top-4 z-10 flex items-center gap-3">
-          <h1 className="text-sm font-medium text-muted-foreground">
-            {activeCanvas?.name ?? "Canvas"}
-          </h1>
+          {isEditingTopBar ? (
+            <div className="relative">
+              <input
+                ref={topBarInputRef}
+                value={topBarEditName}
+                onChange={(e) => setTopBarEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleTopBarRename();
+                  if (e.key === "Escape") cancelTopBarEditing();
+                }}
+                onBlur={handleTopBarBlur}
+                className="min-w-[80px] text-sm font-medium bg-transparent border-0 border-b border-muted-foreground/30 px-0 py-0 outline-none text-muted-foreground focus:border-ring focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Rename canvas"
+                autoFocus
+              />
+              {topBarRenameError && (
+                <p role="alert" className="absolute left-0 top-full mt-0.5 whitespace-nowrap text-[10px] text-destructive">
+                  {topBarRenameError}
+                </p>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startTopBarEditing}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-text rounded focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+              title="Click to rename"
+            >
+              {activeCanvas?.name ?? "Canvas"}
+            </button>
+          )}
           <span className="text-xs text-muted-foreground/50">
-            {canvasNodes.length} placed
+            {canvasNodes.length + canvasGenericNodes.length} placed
           </span>
           <span className="text-xs text-muted-foreground/40">|</span>
           <button
             type="button"
+            onClick={handleAddGenericNode}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <FileText className="size-3" />
+            Add Node
+          </button>
+          <button
+            type="button"
             onClick={async () => {
+              const pos = getCascadePosition(getViewportCenter());
               await canvasStore.upsertFrame(
                 undefined,
                 "Frame",
-                200,
-                100,
+                pos.x - 200,
+                pos.y - 150,
                 400,
                 300,
                 "hsl(220, 70%, 60%)",
@@ -625,6 +812,38 @@ function CanvasPageInner() {
                   >
                     <Trash2 className="size-3" />
                     Delete frame
+                  </button>
+                </>
+              ) : contextMenu.nodeType === "generic" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleContextMenuGroupInFrame}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <FolderOpen className="size-3" />
+                    Group in frame
+                  </button>
+                  {(() => {
+                    const gn = canvasGenericNodes.find((n) => n.id === contextMenu.nodeId);
+                    return gn?.frameId ? (
+                      <button
+                        type="button"
+                        onClick={handleContextMenuRemoveFromFrame}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-popover-foreground hover:bg-muted transition-colors"
+                      >
+                        <FolderOutput className="size-3" />
+                        Remove from frame
+                      </button>
+                    ) : null;
+                  })()}
+                  <button
+                    type="button"
+                    onClick={handleContextMenuRemove}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="size-3" />
+                    Remove from canvas
                   </button>
                 </>
               ) : (

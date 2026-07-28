@@ -2,7 +2,7 @@
 
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { canvases, canvasNodes, canvasEdges, canvasFrames } from "@/lib/db/schema";
+import { canvases, canvasNodes, canvasEdges, canvasFrames, canvasGenericNodes } from "@/lib/db/schema";
 
 // ─── Canvas ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +68,8 @@ export async function renameCanvas(id: string, name: string): Promise<void> {
 export async function deleteCanvas(id: string): Promise<void> {
   await db.delete(canvasEdges).where(eq(canvasEdges.canvasId, id));
   await db.delete(canvasNodes).where(eq(canvasNodes.canvasId, id));
+  await db.delete(canvasGenericNodes).where(eq(canvasGenericNodes.canvasId, id));
+  await db.delete(canvasFrames).where(eq(canvasFrames.canvasId, id));
   await db.delete(canvases).where(eq(canvases.id, id));
 }
 
@@ -183,6 +185,10 @@ export async function removeCanvasFrame(canvasId: string, id: string) {
     .set({ frameId: null })
     .where(and(eq(canvasNodes.canvasId, canvasId), eq(canvasNodes.frameId, id)));
   await db
+    .update(canvasGenericNodes)
+    .set({ frameId: null })
+    .where(and(eq(canvasGenericNodes.canvasId, canvasId), eq(canvasGenericNodes.frameId, id)));
+  await db
     .delete(canvasFrames)
     .where(and(eq(canvasFrames.canvasId, canvasId), eq(canvasFrames.id, id)));
 }
@@ -196,6 +202,89 @@ export async function setNodeFrame(
     .update(canvasNodes)
     .set({ frameId })
     .where(and(eq(canvasNodes.canvasId, canvasId), eq(canvasNodes.noteId, noteId)));
+}
+
+// ─── Canvas Generic Nodes ──────────────────────────────────────────────────
+
+export type CanvasGenericNodeRow = {
+  id: string;
+  canvasId: string;
+  content: string;
+  x: number;
+  y: number;
+  frameId: string | null;
+};
+
+export async function getCanvasGenericNodes(canvasId: string): Promise<CanvasGenericNodeRow[]> {
+  const rows = await db
+    .select()
+    .from(canvasGenericNodes)
+    .where(eq(canvasGenericNodes.canvasId, canvasId))
+    .orderBy(canvasGenericNodes.createdAt);
+  return rows.map((r) => ({
+    id: r.id,
+    canvasId: r.canvasId,
+    content: r.content,
+    x: r.x,
+    y: r.y,
+    frameId: r.frameId ?? null,
+  }));
+}
+
+export async function upsertCanvasGenericNode(
+  canvasId: string,
+  id: string | undefined,
+  content: string,
+  x: number,
+  y: number,
+): Promise<CanvasGenericNodeRow> {
+  const now = Date.now();
+  const nodeId = id ?? `gen_${now}_${Math.random().toString(36).slice(2, 8)}`;
+  const existing = await db
+    .select({ frameId: canvasGenericNodes.frameId })
+    .from(canvasGenericNodes)
+    .where(eq(canvasGenericNodes.id, nodeId))
+    .limit(1);
+  const currentFrameId = existing.length > 0 ? existing[0].frameId : null;
+  await db
+    .insert(canvasGenericNodes)
+    .values({ id: nodeId, canvasId, content, x, y, frameId: currentFrameId, createdAt: now, updatedAt: now })
+    .onConflictDoUpdate({
+      target: canvasGenericNodes.id,
+      set: { content, x, y, updatedAt: now },
+    });
+  return { id: nodeId, canvasId, content, x, y, frameId: currentFrameId };
+}
+
+export async function updateCanvasGenericNodeContent(
+  id: string,
+  content: string,
+): Promise<void> {
+  await db
+    .update(canvasGenericNodes)
+    .set({ content, updatedAt: Date.now() })
+    .where(eq(canvasGenericNodes.id, id));
+}
+
+export async function removeCanvasGenericNode(canvasId: string, id: string) {
+  await db
+    .delete(canvasGenericNodes)
+    .where(
+      and(
+        eq(canvasGenericNodes.canvasId, canvasId),
+        eq(canvasGenericNodes.id, id),
+      ),
+    );
+}
+
+export async function setGenericNodeFrame(
+  id: string,
+  frameId: string | null,
+): Promise<void> {
+  await db
+    .update(canvasGenericNodes)
+    .set({ frameId, updatedAt: Date.now() })
+    .where(eq(canvasGenericNodes.id, id));
 }
 
 // ─── Canvas Edges ──────────────────────────────────────────────────────────
