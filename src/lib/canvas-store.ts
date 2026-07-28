@@ -13,15 +13,21 @@ import {
   upsertCanvasFrame,
   removeCanvasFrame,
   setNodeFrame,
+  getCanvasGenericNodes,
+  upsertCanvasGenericNode,
+  updateCanvasGenericNodeContent,
+  removeCanvasGenericNode,
+  setGenericNodeFrame,
   updateCanvasViewport,
   updateCanvasUIState,
   type CanvasRow,
   type CanvasNodeRow,
   type CanvasEdgeRow,
   type CanvasFrameRow,
+  type CanvasGenericNodeRow,
 } from "@/lib/actions/canvas";
 
-export type { CanvasRow, CanvasNodeRow, CanvasEdgeRow, CanvasFrameRow };
+export type { CanvasRow, CanvasNodeRow, CanvasEdgeRow, CanvasFrameRow, CanvasGenericNodeRow };
 
 type Listener = () => void;
 
@@ -29,6 +35,7 @@ let _canvases: CanvasRow[] = [];
 let _nodes: CanvasNodeRow[] = [];
 let _edges: CanvasEdgeRow[] = [];
 let _frames: CanvasFrameRow[] = [];
+let _genericNodes: CanvasGenericNodeRow[] = [];
 let _activeCanvasId: string | null = null;
 const listeners = new Set<Listener>();
 
@@ -44,6 +51,8 @@ let _lastEdgesKey = "";
 let _lastEdgesSnapshot: readonly CanvasEdgeRow[] = _emptyArr;
 let _lastFramesKey = "";
 let _lastFramesSnapshot: readonly CanvasFrameRow[] = _emptyArr;
+let _lastGenericNodesKey = "";
+let _lastGenericNodesSnapshot: readonly CanvasGenericNodeRow[] = _emptyArr;
 
 function serializeCanvases(list: CanvasRow[]): string {
   return JSON.stringify(list.map((c) => [c.id, c.name]));
@@ -56,6 +65,9 @@ function serializeEdges(edges: CanvasEdgeRow[]): string {
 }
 function serializeFrames(frames: CanvasFrameRow[]): string {
   return JSON.stringify(frames.map((f) => [f.id, f.name, f.x, f.y, f.width, f.height, f.color]));
+}
+function serializeGenericNodes(nodes: CanvasGenericNodeRow[]): string {
+  return JSON.stringify(nodes.map((n) => [n.id, n.content, n.x, n.y, n.frameId]));
 }
 
 function notify() {
@@ -85,20 +97,23 @@ export const canvasStore = {
     const targetId = canvasId ?? _canvases[0].id;
     _activeCanvasId = targetId;
 
-    const [nodes, edges, frames] = await Promise.all([
+    const [nodes, edges, frames, genericNodes] = await Promise.all([
       getCanvasNodes(targetId),
       getCanvasEdges(targetId),
       getCanvasFrames(targetId),
+      getCanvasGenericNodes(targetId),
     ]);
     _nodes = nodes;
     _edges = edges;
     _frames = frames;
+    _genericNodes = genericNodes;
 
     _loaded = true;
     _lastCanvasesKey = "";
     _lastNodesKey = "";
     _lastEdgesKey = "";
     _lastFramesKey = "";
+    _lastGenericNodesKey = "";
     notify();
   },
 
@@ -106,18 +121,21 @@ export const canvasStore = {
 
   async setActiveCanvas(canvasId: string): Promise<void> {
     if (canvasId === _activeCanvasId) return;
-    const [nodes, edges, frames] = await Promise.all([
+    const [nodes, edges, frames, genericNodes] = await Promise.all([
       getCanvasNodes(canvasId),
       getCanvasEdges(canvasId),
       getCanvasFrames(canvasId),
+      getCanvasGenericNodes(canvasId),
     ]);
     _activeCanvasId = canvasId;
     _nodes = nodes;
     _edges = edges;
     _frames = frames;
+    _genericNodes = genericNodes;
     _lastNodesKey = "";
     _lastEdgesKey = "";
     _lastFramesKey = "";
+    _lastGenericNodesKey = "";
     notify();
   },
 
@@ -275,8 +293,14 @@ export const canvasStore = {
         (node as CanvasNodeRow & { frameId: string | null }).frameId = null;
       }
     }
+    for (const gn of _genericNodes) {
+      if (gn.frameId === id) {
+        (gn as CanvasGenericNodeRow & { frameId: string | null }).frameId = null;
+      }
+    }
     _lastNodesKey = "";
     _lastFramesKey = "";
+    _lastGenericNodesKey = "";
     notify();
   },
 
@@ -288,6 +312,60 @@ export const canvasStore = {
       (node as CanvasNodeRow & { frameId: string | null }).frameId = frameId;
     }
     _lastNodesKey = "";
+    notify();
+  },
+
+  // ── Active-canvas generic node operations ─────────────────────────
+
+  getGenericNodes(): readonly CanvasGenericNodeRow[] {
+    return _genericNodes;
+  },
+
+  async upsertGenericNode(
+    id: string | undefined,
+    content: string,
+    x: number,
+    y: number,
+  ): Promise<CanvasGenericNodeRow> {
+    if (!_activeCanvasId) throw new Error("No active canvas");
+    const node = await upsertCanvasGenericNode(_activeCanvasId, id, content, x, y);
+    const idx = _genericNodes.findIndex((n) => n.id === node.id);
+    if (idx >= 0) {
+      _genericNodes[idx] = node;
+    } else {
+      _genericNodes.push(node);
+    }
+    _lastGenericNodesKey = "";
+    notify();
+    return node;
+  },
+
+  async updateGenericNodeContent(id: string, content: string) {
+    await updateCanvasGenericNodeContent(id, content);
+    const node = _genericNodes.find((n) => n.id === id);
+    if (node) {
+      (node as CanvasGenericNodeRow & { content: string }).content = content;
+    }
+    _lastGenericNodesKey = "";
+    notify();
+  },
+
+  async removeGenericNode(id: string) {
+    if (!_activeCanvasId) return;
+    await removeCanvasGenericNode(_activeCanvasId, id);
+    _genericNodes = _genericNodes.filter((n) => n.id !== id);
+    _lastGenericNodesKey = "";
+    notify();
+  },
+
+  async setGenericNodeFrame(id: string, frameId: string | null) {
+    if (!_activeCanvasId) return;
+    await setGenericNodeFrame(id, frameId);
+    const node = _genericNodes.find((n) => n.id === id);
+    if (node) {
+      (node as CanvasGenericNodeRow & { frameId: string | null }).frameId = frameId;
+    }
+    _lastGenericNodesKey = "";
     notify();
   },
 
@@ -336,6 +414,15 @@ export const canvasStore = {
       _lastFramesKey = key;
     }
     return _lastFramesSnapshot;
+  },
+
+  getGenericNodesSnapshot(): readonly CanvasGenericNodeRow[] {
+    const key = serializeGenericNodes(_genericNodes);
+    if (key !== _lastGenericNodesKey) {
+      _lastGenericNodesSnapshot = Object.freeze([..._genericNodes]);
+      _lastGenericNodesKey = key;
+    }
+    return _lastGenericNodesSnapshot;
   },
 
   getServerSnapshot(): [] {
