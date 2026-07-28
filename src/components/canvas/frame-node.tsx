@@ -1,8 +1,16 @@
 "use client";
 
-import { memo } from "react";
-import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
+import { memo, useCallback } from "react";
+import {
+  Handle,
+  Position,
+  NodeResizer,
+  type NodeProps,
+  type Node,
+  type ResizeParams,
+} from "@xyflow/react";
 import { cn } from "@/lib/utils";
+import { canvasStore } from "@/lib/canvas-store";
 
 export type FrameNodeData = {
   label: string;
@@ -11,8 +19,25 @@ export type FrameNodeData = {
 
 export type FrameNodeType = Node<FrameNodeData, "frame">;
 
-function FrameNodeComponent({ data, selected }: NodeProps<FrameNodeType>) {
+function FrameNodeComponent({ data, selected, id }: NodeProps<FrameNodeType>) {
   const color = data.color ?? "hsl(220, 70%, 60%)";
+
+  const onResizeEnd = useCallback(
+    (_event: unknown, params: ResizeParams) => {
+      const cf = canvasStore.getFrames().find((f) => f.id === id);
+      if (!cf) return;
+      canvasStore.upsertFrame(
+        id,
+        cf.name,
+        cf.x,
+        cf.y,
+        params.width,
+        params.height,
+        cf.color,
+      );
+    },
+    [id],
+  );
 
   return (
     <div
@@ -25,6 +50,15 @@ function FrameNodeComponent({ data, selected }: NodeProps<FrameNodeType>) {
         background: `linear-gradient(135deg, ${color}08, ${color}15)`,
       }}
     >
+      <NodeResizer
+        minWidth={200}
+        minHeight={120}
+        isVisible={selected}
+        onResizeEnd={onResizeEnd}
+        handleClassName="!size-5 !border-[3px] !border-background !bg-primary !shadow-sm !rounded-full"
+        lineClassName="!border-4 border-primary/60 hover:border-primary transition-colors"
+      />
+
       {/* Header */}
       <div
         className="flex items-center gap-2 rounded-t-xl px-3 py-1.5 text-xs font-semibold tracking-wide"
