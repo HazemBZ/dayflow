@@ -173,6 +173,18 @@ export const canvasFrames = sqliteTable("canvas_frames", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// ─── Canvas Generic Nodes ────────────────────────────────────────────────────
+export const canvasGenericNodes = sqliteTable("canvas_generic_nodes", {
+  id: text("id").primaryKey(),
+  canvasId: text("canvas_id").notNull(),
+  content: text("content").notNull().default(""),
+  x: real("x").notNull().default(0),
+  y: real("y").notNull().default(0),
+  frameId: text("frame_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // ─── Canvas Edges ────────────────────────────────────────────────────────────
 export const canvasEdges = sqliteTable("canvas_edges", {
   id: text("id").primaryKey(),
