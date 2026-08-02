@@ -246,3 +246,20 @@ roadmap:
         status: completed
       - name: Build verification passes
         status: completed
+  - phase: P11 - Todo Projects
+    status: in_progress
+    started: 2026-07-31
+    milestones:
+      - name: Persisted projects and nullable Todo association
+        status: completed
+    tasks:
+      - name: Add projects schema and migration
+        status: completed
+      - name: Add Projects GET/POST API and client
+        status: completed
+      - name: Add nullable project association to Todo contracts and API
+        status: completed
+      - name: Add Projects dialog and Todo selectors
+        status: completed
+      - name: Add tests, documentation, and verification
+        status: in_progress
