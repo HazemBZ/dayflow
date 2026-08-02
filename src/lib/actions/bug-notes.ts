@@ -1,76 +1,124 @@
 "use server";
 
-import { eq, desc } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { bugNotes } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 
+import type {
+  TodoDto,
+  TodoSeverity,
+  TodoStatus,
+} from "@/lib/todos/contracts";
+import { todoService } from "@/lib/todos/production";
+import type {
+  TodoCreateResult,
+  TodoMutationResult,
+} from "@/lib/todos/service";
+
 export type BugNoteRow = {
-  id: string;
-  text: string;
-  createdAt: number;
-  updatedAt: number;
-  bookmarked: boolean;
-  severity: "low" | "medium" | "high" | "critical";
-  status: "open" | "in-progress" | "resolved" | "closed";
+  readonly id: string;
+  readonly text: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly bookmarked: boolean;
+  readonly severity: TodoSeverity;
+  readonly status: "open" | "in-progress" | "resolved" | "closed";
 };
 
+const TODO_TO_LEGACY_STATUS = {
+  pending: "open",
+  in_progress: "in-progress",
+  done: "resolved",
+  cancelled: "closed",
+} as const satisfies Record<TodoStatus, BugNoteRow["status"]>;
+
+const LEGACY_TO_TODO_STATUS = {
+  open: "pending",
+  "in-progress": "in_progress",
+  resolved: "done",
+  closed: "cancelled",
+} as const satisfies Record<BugNoteRow["status"], TodoStatus>;
+
+class LegacyBugNoteNotFoundError extends Error {
+  constructor() {
+    super("Bug note not found");
+    this.name = "LegacyBugNoteNotFoundError";
+  }
+}
+
+class LegacyBugNoteConflictError extends Error {
+  constructor() {
+    super("Bug note lifecycle conflict");
+    this.name = "LegacyBugNoteConflictError";
+  }
+}
+
+class LegacyBugNoteInvariantError extends Error {
+  constructor() {
+    super("Unexpected Todo mutation result");
+    this.name = "LegacyBugNoteInvariantError";
+  }
+}
+
+function toLegacyBugNote(todo: TodoDto): BugNoteRow {
+  return {
+    id: todo.id,
+    text: todo.text,
+    createdAt: Date.parse(todo.createdAt),
+    updatedAt: Date.parse(todo.updatedAt),
+    bookmarked: todo.bookmarked,
+    severity: todo.severity,
+    status: TODO_TO_LEGACY_STATUS[todo.status],
+  };
+}
+
+function requireTodo(result: TodoMutationResult): TodoDto {
+  switch (result.kind) {
+    case "success":
+      return result.todo;
+    case "not_found":
+      throw new LegacyBugNoteNotFoundError();
+    case "project_not_found":
+      throw new LegacyBugNoteInvariantError();
+    case "conflict":
+      throw new LegacyBugNoteConflictError();
+    default:
+      throw new LegacyBugNoteInvariantError();
+  }
+}
+
+function requireCreatedTodo(result: TodoCreateResult): TodoDto {
+  switch (result.kind) {
+    case "success":
+      return result.todo;
+    case "project_not_found":
+      throw new LegacyBugNoteInvariantError();
+    default:
+      throw new LegacyBugNoteInvariantError();
+  }
+}
+
 export async function getBugNotes(): Promise<BugNoteRow[]> {
-  const rows = await db
-    .select()
-    .from(bugNotes)
-    .orderBy(desc(bugNotes.createdAt));
-  return rows.map((r) => ({
-    ...r,
-    bookmarked: r.bookmarked ?? false,
-    severity: r.severity ?? "medium",
-    status: r.status ?? "open",
-  }));
+  const todos = await todoService.list();
+  return todos.map(toLegacyBugNote);
 }
 
 export async function addBugNote(text: string): Promise<BugNoteRow> {
-  const now = Date.now();
-  const id = `bug_${now}_${Math.random().toString(36).slice(2, 8)}`;
-  const note: BugNoteRow = {
-    id,
-    text,
-    createdAt: now,
-    updatedAt: now,
-    bookmarked: false,
-    severity: "medium",
-    status: "open",
-  };
-  await db.insert(bugNotes).values(note);
+  const todo = requireCreatedTodo(await todoService.create({ text }));
   revalidatePath("/");
-  return note;
+  return toLegacyBugNote(todo);
 }
 
 export async function getBugNote(id: string): Promise<BugNoteRow | null> {
-  const rows = await db
-    .select()
-    .from(bugNotes)
-    .where(eq(bugNotes.id, id))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    ...row,
-    bookmarked: row.bookmarked ?? false,
-    severity: row.severity ?? "medium",
-    status: row.status ?? "open",
-  };
+  const todo = await todoService.get(id);
+  return todo ? toLegacyBugNote(todo) : null;
 }
 
-export async function removeBugNote(id: string) {
-  await db.delete(bugNotes).where(eq(bugNotes.id, id));
+export async function removeBugNote(id: string): Promise<void> {
+  await todoService.delete(id);
   revalidatePath("/");
 }
 
-export async function updateBugNote(id: string, text: string) {
-  await db
-    .update(bugNotes)
-    .set({ text, updatedAt: Date.now() })
-    .where(eq(bugNotes.id, id));
+export async function updateBugNote(id: string, text: string): Promise<void> {
+  requireTodo(await todoService.update(id, { text }));
   revalidatePath("/");
 }
 
@@ -78,44 +126,21 @@ export async function updateBugNoteStatus(
   id: string,
   status: BugNoteRow["status"],
 ): Promise<BugNoteRow> {
-  const rows = await db
-    .select()
-    .from(bugNotes)
-    .where(eq(bugNotes.id, id))
-    .limit(1);
-  const note = rows[0];
-  if (!note) throw new Error("Bug note not found");
-  await db
-    .update(bugNotes)
-    .set({ status, updatedAt: Date.now() })
-    .where(eq(bugNotes.id, id));
+  const todo = requireTodo(
+    await todoService.update(id, { status: LEGACY_TO_TODO_STATUS[status] }),
+  );
   revalidatePath("/");
-  return {
-    ...note,
-    bookmarked: note.bookmarked ?? false,
-    severity: note.severity as BugNoteRow["severity"],
-    status,
-  };
+  return toLegacyBugNote(todo);
 }
 
 export async function toggleBugNoteBookmark(id: string): Promise<BugNoteRow> {
-  const rows = await db
-    .select()
-    .from(bugNotes)
-    .where(eq(bugNotes.id, id))
-    .limit(1);
-  const note = rows[0];
-  if (!note) throw new Error("Bug note not found");
-  const next = !(note.bookmarked ?? false);
-  await db
-    .update(bugNotes)
-    .set({ bookmarked: next, updatedAt: Date.now() })
-    .where(eq(bugNotes.id, id));
+  const current = await todoService.get(id);
+  if (!current) {
+    throw new LegacyBugNoteNotFoundError();
+  }
+  const todo = requireTodo(
+    await todoService.update(id, { bookmarked: !current.bookmarked }),
+  );
   revalidatePath("/");
-  return {
-    ...note,
-    bookmarked: next,
-    severity: note.severity ?? "medium",
-    status: note.status ?? "open",
-  };
+  return toLegacyBugNote(todo);
 }
