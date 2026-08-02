@@ -1,11 +1,27 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { canvasStore, type CanvasRow } from "@/lib/canvas-store";
-import { PanelRightClose, PanelRightOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { CanvasSidebarItem } from "@/components/canvas/canvas-sidebar-item";
+import { PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 
 const SIDEBAR_WIDTH = 220;
 
@@ -38,6 +54,16 @@ export function CanvasSidebar({
   const editInputRef = useRef<HTMLInputElement>(null);
   const renameSubmittingRef = useRef(false);
   const renameCancelledRef = useRef(false);
+  const [orderedCanvases, setOrderedCanvases] = useState<readonly CanvasRow[]>(canvases);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    setOrderedCanvases(canvases);
+  }, [canvases]);
 
   async function handleCreate() {
     setCreating(true);
@@ -65,11 +91,32 @@ export function CanvasSidebar({
     }
   }
 
-  async function handleDelete(e: React.MouseEvent, id: string) {
-    e.stopPropagation();
+  async function handleDelete(id: string) {
     if (canvases.length <= 1) return; // keep at least one
     await canvasStore.deleteCanvas(id);
     // store handles switching active canvas if needed
+  }
+
+  async function handleDragEnd(event: DragEndEvent): Promise<void> {
+    const activeId = `${event.active.id}`;
+    const overId = event.over ? `${event.over.id}` : null;
+    if (!overId || activeId === overId) return;
+
+    const previousCanvases = orderedCanvases;
+    const oldIndex = previousCanvases.findIndex((canvas) => canvas.id === activeId);
+    const newIndex = previousCanvases.findIndex((canvas) => canvas.id === overId);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reorderedCanvases = arrayMove([...previousCanvases], oldIndex, newIndex);
+    setReorderError(null);
+    setOrderedCanvases(reorderedCanvases);
+
+    try {
+      await canvasStore.reorderCanvases(reorderedCanvases.map((canvas) => canvas.id));
+    } catch (error) {
+      setOrderedCanvases(previousCanvases);
+      setReorderError(error instanceof Error ? error.message : "Unable to reorder canvases.");
+    }
   }
 
   // ── Rename ──────────────────────────────────────────────────────────
@@ -177,8 +224,23 @@ export function CanvasSidebar({
 		</div>
             )}
 
-            <div className="space-y-0.5">
-              {canvases.map((c) => {
+            {reorderError && (
+              <p role="alert" className="mb-1 px-2 text-[10px] text-destructive">
+                {reorderError}
+              </p>
+            )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={() => setReorderError(null)}
+              onDragEnd={(event) => void handleDragEnd(event)}
+            >
+              <SortableContext
+                items={orderedCanvases.map((canvas) => canvas.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-0.5">
+                  {orderedCanvases.map((c) => {
                 const isActive = c.id === activeCanvasId;
                 const isEditing = editingId === c.id;
 
@@ -209,70 +271,21 @@ export function CanvasSidebar({
                   );
                 }
 
-                return (
-                  <div
-                    key={c.id}
-                    className={cn(
-                      "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSelectCanvas(c.id)}
-                      className={cn(
-                        "flex-1 truncate text-left outline-none cursor-pointer rounded",
-                        "focus-visible:ring-1 focus-visible:ring-ring",
-                        isActive
-                          ? "text-primary-foreground"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {c.name}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(c);
-                      }}
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded",
-                        "opacity-0 focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100",
-                        "transition-opacity focus-visible:ring-1 focus-visible:ring-ring",
-                        isActive
-                          ? "text-primary-foreground/70 hover:text-primary-foreground"
-                          : "text-muted-foreground/50 hover:text-foreground"
-                      )}
-                      title="Rename canvas"
-                    >
-                      <Pencil className="size-3" />
-                    </button>
-                    {canvases.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDelete(e, c.id)}
-                          className={cn(
-                            "flex size-4 shrink-0 items-center justify-center rounded",
-                            "opacity-0 focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100",
-                            "transition-opacity focus-visible:ring-1 focus-visible:ring-ring",
-                            isActive
-                              ? "text-primary-foreground/70 hover:text-primary-foreground"
-                              : "text-muted-foreground/50 hover:text-foreground"
-                          )}
-                          title="Delete canvas"
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    return (
+                      <CanvasSidebarItem
+                        key={c.id}
+                        canvas={c}
+                        isActive={isActive}
+                        canDelete={orderedCanvases.length > 1}
+                        onSelect={onSelectCanvas}
+                        onRename={startEditing}
+                        onDelete={(id) => void handleDelete(id)}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       </div>
