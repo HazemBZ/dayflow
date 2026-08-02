@@ -1,6 +1,7 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { canvases, canvasNodes, canvasEdges, canvasFrames, canvasGenericNodes } from "@/lib/db/schema";
 
@@ -9,6 +10,7 @@ import { canvases, canvasNodes, canvasEdges, canvasFrames, canvasGenericNodes } 
 export type CanvasRow = {
   id: string;
   name: string;
+  position: number | null;
   viewportX: number | null;
   viewportY: number | null;
   viewportZoom: number | null;
@@ -16,11 +18,25 @@ export type CanvasRow = {
   minimapCollapsed: boolean | null;
 };
 
+class CanvasOrderError extends Error {
+  override readonly name = "CanvasOrderError";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+const canvasIdListSchema = z.array(z.string().min(1));
+
 export async function getCanvases(): Promise<CanvasRow[]> {
-  const rows = await db.select().from(canvases).orderBy(canvases.createdAt);
+  const rows = await db
+    .select()
+    .from(canvases)
+    .orderBy(asc(canvases.position), asc(canvases.createdAt), asc(canvases.id));
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
+    position: r.position ?? null,
     viewportX: r.viewportX ?? null,
     viewportY: r.viewportY ?? null,
     viewportZoom: r.viewportZoom ?? null,
@@ -32,8 +48,37 @@ export async function getCanvases(): Promise<CanvasRow[]> {
 export async function createCanvas(name: string): Promise<CanvasRow> {
   const now = Date.now();
   const id = `canvas_${now}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(canvases).values({ id, name, createdAt: now, updatedAt: now });
-  return { id, name, viewportX: null, viewportY: null, viewportZoom: null, sidebarOpen: null, minimapCollapsed: null };
+  const position = sql<number>`coalesce((select max(${canvases.position}) + 1 from ${canvases}), 0)`;
+  const [inserted] = await db
+    .insert(canvases)
+    .values({ id, name, position, createdAt: now, updatedAt: now })
+    .returning({ position: canvases.position });
+  const canvasPosition = inserted?.position ?? 0;
+  return { id, name, position: canvasPosition, viewportX: null, viewportY: null, viewportZoom: null, sidebarOpen: null, minimapCollapsed: null };
+}
+
+export async function reorderCanvases(canvasIds: readonly string[]): Promise<void> {
+  const parsedIds = canvasIdListSchema.parse(canvasIds);
+
+  await db.transaction(async (tx) => {
+    const existing = await tx.select({ id: canvases.id }).from(canvases);
+    const existingIds = new Set(existing.map((canvas) => canvas.id));
+    const requestedIds = new Set(parsedIds);
+    const isPermutation =
+      existingIds.size === parsedIds.length &&
+      requestedIds.size === parsedIds.length &&
+      parsedIds.every((id) => existingIds.has(id));
+
+    if (!isPermutation) {
+      throw new CanvasOrderError("Canvas order must contain every canvas exactly once.");
+    }
+
+    await Promise.all(
+      parsedIds.map((id, position) =>
+        tx.update(canvases).set({ position }).where(eq(canvases.id, id)),
+      ),
+    );
+  });
 }
 
 export async function updateCanvasViewport(
@@ -66,11 +111,23 @@ export async function renameCanvas(id: string, name: string): Promise<void> {
 }
 
 export async function deleteCanvas(id: string): Promise<void> {
-  await db.delete(canvasEdges).where(eq(canvasEdges.canvasId, id));
-  await db.delete(canvasNodes).where(eq(canvasNodes.canvasId, id));
-  await db.delete(canvasGenericNodes).where(eq(canvasGenericNodes.canvasId, id));
-  await db.delete(canvasFrames).where(eq(canvasFrames.canvasId, id));
-  await db.delete(canvases).where(eq(canvases.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(canvasEdges).where(eq(canvasEdges.canvasId, id));
+    await tx.delete(canvasNodes).where(eq(canvasNodes.canvasId, id));
+    await tx.delete(canvasGenericNodes).where(eq(canvasGenericNodes.canvasId, id));
+    await tx.delete(canvasFrames).where(eq(canvasFrames.canvasId, id));
+    await tx.delete(canvases).where(eq(canvases.id, id));
+
+    const remaining = await tx
+      .select({ id: canvases.id })
+      .from(canvases)
+      .orderBy(asc(canvases.position), asc(canvases.createdAt), asc(canvases.id));
+    await Promise.all(
+      remaining.map((canvas, position) =>
+        tx.update(canvases).set({ position }).where(eq(canvases.id, canvas.id)),
+      ),
+    );
+  });
 }
 
 // ─── Canvas Nodes ──────────────────────────────────────────────────────────

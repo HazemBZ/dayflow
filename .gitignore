@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Tauri build output and generated sidecars
+/src-tauri/target/
+/src-tauri/binaries/dayflow-server-*
+
 # production
 /build
 

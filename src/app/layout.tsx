@@ -13,6 +13,7 @@ import { LiveClock } from "@/components/ui/live-clock";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
 import { ScaleProvider } from "@/lib/scale-provider";
 import { NotesPopover } from "@/components/ui/notes-popover";
+import { getPageActivationStates } from "@/lib/page-activation/repository";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,11 +52,15 @@ export const metadata: Metadata = {
   description: "Daily → Weekly → Monthly → Quarterly planning system",
 };
 
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pageActivationStates = await getPageActivationStates();
+
   return (
     <html
       lang="en"
@@ -66,7 +71,7 @@ export default function RootLayout({
         <ThemeProvider>
           <ScaleProvider>
           <div className="flex h-screen">
-            <Sidebar />
+            <Sidebar pageActivationStates={pageActivationStates} />
             <div className="fixed right-4 top-1 z-50">
               <LiveClock />
             </div>

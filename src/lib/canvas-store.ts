@@ -3,6 +3,7 @@ import {
   createCanvas,
   renameCanvas,
   deleteCanvas,
+  reorderCanvases,
   getCanvasNodes,
   upsertCanvasNode,
   removeCanvasNode,
@@ -184,6 +185,13 @@ export const canvasStore = {
     await renameCanvas(id, name);
     const found = _canvases.find((c) => c.id === id);
     if (found) found.name = name;
+    _lastCanvasesKey = "";
+    notify();
+  },
+
+  async reorderCanvases(canvasIds: readonly string[]): Promise<void> {
+    await reorderCanvases(canvasIds);
+    _canvases = await getCanvases();
     _lastCanvasesKey = "";
     notify();
   },

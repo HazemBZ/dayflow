@@ -76,7 +76,7 @@ export default function NotesPage() {
 
   const baseNotes = showArchived ? notes.filter((n) => n.archived) : notes.filter((n) => !n.archived);
   const tagFiltered = selectedTags.length > 0
-    ? baseNotes.filter((n) => selectedTags.every((t) => n.tags.includes(t)))
+    ? baseNotes.filter((n) => selectedTags.some((t) => n.tags.includes(t)))
     : baseNotes;
   const filteredNotes = showBookmarked ? tagFiltered.filter((n) => n.bookmarked) : tagFiltered;
 
