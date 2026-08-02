@@ -134,6 +134,11 @@ export const fieldConfig = sqliteTable("field_config", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
 
+export const pageActivations = sqliteTable("page_activations", {
+  route: text("route").primaryKey(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+});
+
 // ─── Canvases ─────────────────────────────────────────────────────────────────
 export const canvases = sqliteTable("canvases", {
   id: text("id").primaryKey(),
@@ -143,6 +148,7 @@ export const canvases = sqliteTable("canvases", {
   viewportZoom: real("viewport_zoom"),
   sidebarOpen: integer("sidebar_open", { mode: "boolean" }),
   minimapCollapsed: integer("minimap_collapsed", { mode: "boolean" }),
+  position: integer("position"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -207,16 +213,34 @@ export const quickNotes = sqliteTable("quick_notes", {
   tags: text("tags").default("[]").notNull(),
 });
 
-// ─── Bug Notes (secret — shift+click notes popover) ─────────────────────────
-export const bugNotes = sqliteTable("bug_notes", {
+export const projects = sqliteTable("projects", {
+	id: text("id").primaryKey(),
+	projectName: text("project_name").notNull().unique(),
+	projectPath: text("project_path").notNull().unique(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+
+// ─── Todos ──────────────────────────────────────────────────────────────────
+export const todos = sqliteTable("todos", {
   id: text("id").primaryKey(),
   text: text("text").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
   bookmarked: integer("bookmarked", { mode: "boolean" }).default(false),
   severity: text("severity", { enum: ["low", "medium", "high", "critical"] }).default("medium"),
-  status: text("status", { enum: ["open", "in-progress", "resolved", "closed"] }).default("open"),
+  status: text("status", { enum: ["pending", "in_progress", "done", "cancelled"] }).default("pending"),
+  assignedTo: text("assigned_to"),
+  projectId: text("project_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
 });
+
+export type Todo = typeof todos.$inferSelect;
+export type NewTodo = typeof todos.$inferInsert;
 
 // ─── Outcome Subtasks ──────────────────────────────────────────────────────
 export const outcomeSubtasks = sqliteTable("outcome_subtasks", {
