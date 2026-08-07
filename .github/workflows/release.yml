@@ -108,6 +108,14 @@ jobs:
           echo "Imported certificate:"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
+      # --- Resolve macOS signing identity --------------------------------
+      # Use the real Developer ID when secrets are present, otherwise fall
+      # back to ad-hoc signing ("-") so unsigned builds still bundle and run.
+      - name: Resolve signing identity
+        id: signing
+        run: |
+          echo "identity=${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}" >> "$GITHUB_OUTPUT"
+
       # --- Build Tauri app -------------------------------------------------
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
@@ -115,8 +123,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pass target triple to build-sidecar.sh
           TARGET_TRIPLE: ${{ matrix.target }}
-          # macOS signing (only set when secrets present)
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '' }}
+          # macOS signing (ad-hoc when no secrets configured)
+          APPLE_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
           APPLE_ID: ${{ secrets.APPLE_ID || '' }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || '' }}
