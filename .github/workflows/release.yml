@@ -109,12 +109,20 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       # --- Resolve macOS signing identity --------------------------------
-      # Use the real Developer ID when secrets are present, otherwise fall
-      # back to ad-hoc signing ("-") so unsigned builds still bundle and run.
+      # When Apple secrets exist, sign with the Developer ID + notarize.
+      # Otherwise ad-hoc sign ("-") and skip notarization entirely, so
+      # unsigned builds still bundle and run.
       - name: Resolve signing identity
-        id: signing
+        if: runner.os == 'macOS'
         run: |
-          echo "identity=${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ secrets.APPLE_SIGNING_IDENTITY }}" ]; then
+            echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}" >> "$GITHUB_ENV"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> "$GITHUB_ENV"
+            echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> "$GITHUB_ENV"
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+          fi
 
       # --- Build Tauri app -------------------------------------------------
       - name: Build and release
@@ -123,11 +131,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pass target triple to build-sidecar.sh
           TARGET_TRIPLE: ${{ matrix.target }}
-          # macOS signing (ad-hoc when no secrets configured)
-          APPLE_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
-          APPLE_ID: ${{ secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || '' }}
         with:
           tagName: v__VERSION__
           releaseName: "Dayflow v__VERSION__"
