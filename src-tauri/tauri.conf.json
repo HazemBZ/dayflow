@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/refs/heads/dev/crates/tauri-cli/config.schema.json",
   "productName": "Dayflow",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "com.dayflow.app",
   "build": {
     "beforeDevCommand": "bash scripts/dev.sh",
