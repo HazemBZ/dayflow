@@ -115,6 +115,17 @@ if [ ! -d "$STANDALONE_NM/$BINDING_PKG" ]; then
   exit 1
 fi
 
+# ------------------------------------------------------------------
+# 2.7 Rewrite Turbopack hashed external module ids
+# ------------------------------------------------------------------
+# Next.js 16.1+ Turbopack emits external imports with a content hash
+# (`@libsql/client-7664182d7c51b711`) that no installed package matches
+# (vercel/next.js#87737). The standalone server crashes at runtime with
+# ERR_MODULE_NOT_FOUND, so every DB-backed page/route returns 500. Rewrite
+# the output, failing the build if any hashed id survives.
+echo "==> Rewriting hashed external module ids in standalone output..."
+node "$SCRIPT_DIR/rewrite-hashed-externals.mjs" "$STANDALONE_RUNTIME"
+
 # Verify the migration actually runs from an isolated copy of the
 # standalone output (catches anything the closure missed).
 PROBE_DIR="$(mktemp -d)"
