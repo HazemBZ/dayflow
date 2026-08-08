@@ -11,7 +11,20 @@ use tauri_plugin_shell::ShellExt;
 const SIDECAR_PORT: u16 = 1420;
 
 /// Max time to wait for the sidecar to boot.
-const STARTUP_TIMEOUT_SECS: u64 = 30;
+///
+/// Windows cold starts are slow: the sidecar is a plain node.exe running the
+/// bundled Next.js standalone output (~35k files in node_modules), and
+/// Windows Defender's real-time scanning of every module Node requires() can
+/// push first launch past 30 s. Overridable via DAYFLOW_STARTUP_TIMEOUT_SECS.
+const STARTUP_TIMEOUT_SECS: u64 = 60;
+
+fn startup_timeout() -> Duration {
+    let secs = std::env::var("DAYFLOW_STARTUP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(STARTUP_TIMEOUT_SECS);
+    Duration::from_secs(secs)
+}
 
 /// Max time to wait for migration to complete.
 const MIGRATE_TIMEOUT_SECS: u64 = 60;
@@ -91,7 +104,7 @@ fn port_ready(port: u16) -> bool {
 }
 
 fn wait_for_port(port: u16) -> Result<(), String> {
-    let deadline = std::time::Instant::now() + Duration::from_secs(STARTUP_TIMEOUT_SECS);
+    let deadline = std::time::Instant::now() + startup_timeout();
     while std::time::Instant::now() < deadline {
         if port_ready(port) {
             return Ok(());
@@ -99,7 +112,8 @@ fn wait_for_port(port: u16) -> Result<(), String> {
         std::thread::sleep(Duration::from_millis(250));
     }
     Err(format!(
-        "sidecar did not start within {STARTUP_TIMEOUT_SECS} s"
+        "sidecar did not start within {} s",
+        startup_timeout().as_secs()
     ))
 }
 
@@ -197,7 +211,7 @@ fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
         .to_str()
         .ok_or_else(|| format!("server path is not valid UTF-8: {}", server_js.display()))?;
 
-    let (_rx, _child) = sidecar
+    let (mut rx, _child) = sidecar
         .args([server_js_str, "--port", &SIDECAR_PORT.to_string()])
         .env("PORT", SIDECAR_PORT.to_string())
         .env("HOSTNAME", "127.0.0.1")
@@ -206,6 +220,26 @@ fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
         .current_dir(dir)
         .spawn()
         .map_err(|e| format!("failed to spawn server: {e}"))?;
+
+    // Drain the event stream so server output is not lost: write stderr to the
+    // persistent startup log, otherwise a boot failure surfaces only as the
+    // bare "did not start within N s" timeout with no hint of the real cause.
+    let log_path = startup_log_path(app);
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stderr(line) => {
+                    let text = String::from_utf8_lossy(&line);
+                    eprintln!("[server] {text}");
+                    let _ = append_startup_log(&log_path, &format!("server stderr: {text}"));
+                }
+                CommandEvent::Terminated(status) => {
+                    let _ = append_startup_log(&log_path, &format!("server terminated: {status:?}"));
+                }
+                _ => {}
+            }
+        }
+    });
 
     Ok(())
 }
