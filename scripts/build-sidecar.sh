@@ -85,6 +85,60 @@ if [ ! -d "$PROJECT_DIR/.next/standalone/public" ] && [ -d "$PROJECT_DIR/public"
 fi
 
 # ------------------------------------------------------------------
+# 2.6 Probe migrations and restore runtime modules Turbopack traced away
+# ------------------------------------------------------------------
+# `scripts/migrate.mjs` resolves @libsql/client and drizzle-orm from
+# server/node_modules at runtime, but Next.js standalone tracing bundles
+# app deps into chunks, so the packages are missing from the standalone
+# output and the bundled script dies with ERR_MODULE_NOT_FOUND — killing
+# the app window on startup. Run the migration in an isolated copy of the
+# standalone output to catch every module the runtime needs, and restore
+# each missing package into the real output.
+STANDALONE_RUNTIME="$PROJECT_DIR/.next/standalone"
+mkdir -p "$STANDALONE_RUNTIME/scripts"
+cp -r "$PROJECT_DIR/scripts/migrate.mjs" "$STANDALONE_RUNTIME/scripts/"
+if [ -d "$PROJECT_DIR/drizzle" ] && [ ! -d "$STANDALONE_RUNTIME/drizzle" ]; then
+  cp -r "$PROJECT_DIR/drizzle" "$STANDALONE_RUNTIME/drizzle"
+fi
+PROBE_DIR="$(mktemp -d)"
+PROBE_NM="$PROBE_DIR/node_modules"
+cp -rL "$STANDALONE_NM" "$PROBE_NM"
+cp -r "$STANDALONE_RUNTIME/scripts" "$PROBE_DIR/scripts"
+cp -r "$STANDALONE_RUNTIME/drizzle" "$PROBE_DIR/drizzle"
+for attempt in $(seq 1 40); do
+  if probe_out=$(cd "$PROBE_DIR" && DATABASE_URL="file:probe.db" NODE_ENV=production node scripts/migrate.mjs 2>&1); then
+    probe_code=0
+  else
+    probe_code=$?
+  fi
+  if [ "$probe_code" -eq 0 ]; then
+    rm -f "$PROBE_DIR/probe.db"
+    echo "==> Migration probe OK"
+    break
+  fi
+  pkg=$(echo "$probe_out" | grep -oE "node_modules/[^/'\\\"]+" | head -1 | sed "s|node_modules/||; s|/.*||" || true)
+  if [ -z "$pkg" ]; then
+    pkg=$(echo "$probe_out" | sed -n "s/.*Cannot find package '\([^']*\)'.*/\1/p" | head -1 || true)
+  fi
+  if [ -z "$pkg" ] || [ ! -d "$PROJECT_DIR/node_modules/$pkg" ]; then
+    echo "Migration probe failed, cannot identify missing package:"
+    echo "$probe_out"
+    exit 1
+  fi
+  echo "==> Probe: restoring $pkg into standalone node_modules"
+  rm -rf "$STANDALONE_NM/$pkg"
+  cp -rL "$PROJECT_DIR/node_modules/$pkg" "$STANDALONE_NM/$pkg"
+  rm -rf "$PROBE_NM/$pkg"
+  cp -rL "$PROJECT_DIR/node_modules/$pkg" "$PROBE_NM/$pkg"
+done
+rm -rf "$PROBE_DIR"
+trap - EXIT
+if [ "$probe_code" -ne 0 ]; then
+  echo "Error: migration probe failed after 40 attempts"
+  exit 1
+fi
+
+# ------------------------------------------------------------------
 # 3. Determine Node.js download URL for the target
 # ------------------------------------------------------------------
 get_node_os() {
