@@ -116,20 +116,38 @@ for attempt in $(seq 1 40); do
     echo "==> Migration probe OK"
     break
   fi
-  pkg=$(echo "$probe_out" | grep -oE "node_modules/[^/'\\\"]+" | head -1 | sed "s|node_modules/||; s|/.*||" || true)
+  pkg=$(PROBE_OUT="$probe_out" node -e "
+const s = process.env.PROBE_OUT;
+const m = s.match(/Cannot find (?:package|module) '([^']+)'/);
+if (m) {
+  const t = m[1];
+  if (!/[\\\\/]/.test(t)) { console.log(t); process.exit(0); }
+  const seg = t.match(/node_modules[\\\\/]((?:@[^\\\\/]+[\\\\/][^\\\\/]+)|[^\\\\/]+)/);
+  if (seg) console.log(seg[1]);
+}
+" || true)
   if [ -z "$pkg" ]; then
-    pkg=$(echo "$probe_out" | sed -n "s/.*Cannot find package '\([^']*\)'.*/\1/p" | head -1 || true)
-  fi
-  if [ -z "$pkg" ] || [ ! -d "$PROJECT_DIR/node_modules/$pkg" ]; then
     echo "Migration probe failed, cannot identify missing package:"
+    echo "$probe_out"
+    exit 1
+  fi
+  PKG_SRC="$PROJECT_DIR/node_modules/$pkg"
+  if [ ! -d "$PKG_SRC" ]; then
+    PKG_SRC=$(cd "$PROJECT_DIR" && node -e "console.log(require('path').dirname(require.resolve('$pkg/package.json')))" 2>/dev/null || true)
+  fi
+  if [ -z "$PKG_SRC" ] || [ ! -d "$PKG_SRC" ]; then
+    PKG_SRC=$(find "$PROJECT_DIR/node_modules/.pnpm" -type d -path "*/node_modules/$pkg" 2>/dev/null | head -1 || true)
+  fi
+  if [ -z "$PKG_SRC" ] || [ ! -d "$PKG_SRC" ]; then
+    echo "Migration probe failed, missing package $pkg not found in project node_modules:"
     echo "$probe_out"
     exit 1
   fi
   echo "==> Probe: restoring $pkg into standalone node_modules"
   rm -rf "$STANDALONE_NM/$pkg"
-  cp -rL "$PROJECT_DIR/node_modules/$pkg" "$STANDALONE_NM/$pkg"
+  cp -rL "$PKG_SRC" "$STANDALONE_NM/$pkg"
   rm -rf "$PROBE_NM/$pkg"
-  cp -rL "$PROJECT_DIR/node_modules/$pkg" "$PROBE_NM/$pkg"
+  cp -rL "$PKG_SRC" "$PROBE_NM/$pkg"
 done
 rm -rf "$PROBE_DIR"
 trap - EXIT
