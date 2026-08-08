@@ -85,76 +85,54 @@ if [ ! -d "$PROJECT_DIR/.next/standalone/public" ] && [ -d "$PROJECT_DIR/public"
 fi
 
 # ------------------------------------------------------------------
-# 2.6 Probe migrations and restore runtime modules Turbopack traced away
+# 2.6 Restore runtime modules Turbopack traced out of standalone output
 # ------------------------------------------------------------------
-# `scripts/migrate.mjs` resolves @libsql/client and drizzle-orm from
-# server/node_modules at runtime, but Next.js standalone tracing bundles
-# app deps into chunks, so the packages are missing from the standalone
-# output and the bundled script dies with ERR_MODULE_NOT_FOUND — killing
-# the app window on startup. Run the migration in an isolated copy of the
-# standalone output to catch every module the runtime needs, and restore
-# each missing package into the real output.
+# `scripts/migrate.mjs` imports @libsql/client and drizzle-orm at runtime,
+# but Next.js standalone tracing bundles app deps into chunks, so those
+# packages are missing from standalone/node_modules and the bundled script
+# dies with ERR_MODULE_NOT_FOUND — killing the app window on startup.
+# Walk migrate.mjs's import closure and copy every package back in.
 STANDALONE_RUNTIME="$PROJECT_DIR/.next/standalone"
 mkdir -p "$STANDALONE_RUNTIME/scripts"
 cp -r "$PROJECT_DIR/scripts/migrate.mjs" "$STANDALONE_RUNTIME/scripts/"
 if [ -d "$PROJECT_DIR/drizzle" ] && [ ! -d "$STANDALONE_RUNTIME/drizzle" ]; then
   cp -r "$PROJECT_DIR/drizzle" "$STANDALONE_RUNTIME/drizzle"
 fi
-PROBE_DIR="$(mktemp -d)"
-PROBE_NM="$PROBE_DIR/node_modules"
-cp -rL "$STANDALONE_NM" "$PROBE_NM"
-cp -r "$STANDALONE_RUNTIME/scripts" "$PROBE_DIR/scripts"
-cp -r "$STANDALONE_RUNTIME/drizzle" "$PROBE_DIR/drizzle"
-for attempt in $(seq 1 40); do
-  if probe_out=$(cd "$PROBE_DIR" && DATABASE_URL="file:probe.db" NODE_ENV=production node scripts/migrate.mjs 2>&1); then
-    probe_code=0
-  else
-    probe_code=$?
-  fi
-  if [ "$probe_code" -eq 0 ]; then
-    rm -f "$PROBE_DIR/probe.db"
-    echo "==> Migration probe OK"
-    break
-  fi
-  pkg=$(PROBE_OUT="$probe_out" node -e "
-const s = process.env.PROBE_OUT;
-const m = s.match(/Cannot find (?:package|module) '([^']+)'/);
-if (m) {
-  const t = m[1];
-  if (!/[\\\\/]/.test(t)) { console.log(t); process.exit(0); }
-  const seg = t.match(/node_modules[\\\\/]((?:@[^\\\\/]+[\\\\/][^\\\\/]+)|[^\\\\/]+)/);
-  if (seg) console.log(seg[1]);
-}
-" || true)
-  if [ -z "$pkg" ]; then
-    echo "Migration probe failed, cannot identify missing package:"
-    echo "$probe_out"
-    exit 1
-  fi
-  PKG_SRC="$PROJECT_DIR/node_modules/$pkg"
-  if [ ! -d "$PKG_SRC" ]; then
-    PKG_SRC=$(cd "$PROJECT_DIR" && node -e "console.log(require('path').dirname(require.resolve('$pkg/package.json')))" 2>/dev/null || true)
-  fi
-  if [ -z "$PKG_SRC" ] || [ ! -d "$PKG_SRC" ]; then
-    PKG_SRC=$(find "$PROJECT_DIR/node_modules/.pnpm" -type d -path "*/node_modules/$pkg" 2>/dev/null | head -1 || true)
-  fi
-  if [ -z "$PKG_SRC" ] || [ ! -d "$PKG_SRC" ]; then
-    echo "Migration probe failed, missing package $pkg not found in project node_modules:"
-    echo "$probe_out"
-    exit 1
-  fi
-  echo "==> Probe: restoring $pkg into standalone node_modules"
-  rm -rf "$STANDALONE_NM/$pkg"
-  cp -rL "$PKG_SRC" "$STANDALONE_NM/$pkg"
-  rm -rf "$PROBE_NM/$pkg"
-  cp -rL "$PKG_SRC" "$PROBE_NM/$pkg"
-done
-rm -rf "$PROBE_DIR"
-trap - EXIT
-if [ "$probe_code" -ne 0 ]; then
-  echo "Error: migration probe failed after 40 attempts"
+node "$SCRIPT_DIR/closure.mjs" "$PROJECT_DIR" "$STANDALONE_NM"
+
+# libsql selects its native binding at runtime. A cross-target build can pass
+# the local probe while packaging the build runner's binding, so fail before
+# Tauri packages an artifact that would exit on launch.
+case "$TARGET_TRIPLE" in
+  aarch64-apple-darwin) BINDING_PKG="@libsql/darwin-arm64" ;;
+  x86_64-apple-darwin) BINDING_PKG="@libsql/darwin-x64" ;;
+  x86_64-pc-windows-msvc) BINDING_PKG="@libsql/win32-x64-msvc" ;;
+  x86_64-unknown-linux-gnu) BINDING_PKG="@libsql/linux-x64-gnu" ;;
+  *) echo "Error: unsupported libsql target: $TARGET_TRIPLE"; exit 1 ;;
+esac
+if [ ! -d "$STANDALONE_NM/$BINDING_PKG" ]; then
+  echo "Error: missing target libsql binding $BINDING_PKG for $TARGET_TRIPLE"
   exit 1
 fi
+
+# Verify the migration actually runs from an isolated copy of the
+# standalone output (catches anything the closure missed).
+PROBE_DIR="$(mktemp -d)"
+cp -rL "$STANDALONE_NM" "$PROBE_DIR/node_modules"
+mkdir -p "$PROBE_DIR/scripts" "$PROBE_DIR/drizzle"
+cp -r "$STANDALONE_RUNTIME/scripts/." "$PROBE_DIR/scripts/"
+cp -r "$STANDALONE_RUNTIME/drizzle/." "$PROBE_DIR/drizzle/"
+if probe_out=$(cd "$PROBE_DIR" && DATABASE_URL="file:probe.db" NODE_ENV=production node scripts/migrate.mjs 2>&1); then
+  rm -f "$PROBE_DIR/probe.db"
+  echo "==> Migration probe OK"
+else
+  probe_code=$?
+  rm -rf "$PROBE_DIR"
+  echo "Migration probe failed:"
+  echo "$probe_out"
+  exit "$probe_code"
+fi
+rm -rf "$PROBE_DIR"
 
 # ------------------------------------------------------------------
 # 3. Determine Node.js download URL for the target
