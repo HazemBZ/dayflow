@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use tauri::Manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
@@ -20,28 +21,60 @@ const MIGRATE_TIMEOUT_SECS: u64 = 60;
 // ---------------------------------------------------------------------------
 
 /// Bundled Next.js standalone server directory (inside the app resource dir).
-fn server_dir(app: &tauri::AppHandle) -> PathBuf {
+fn server_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .resource_dir()
-        .expect("resource dir should exist")
-        .join("server")
+        .map(|dir| dir.join("server"))
+        .map_err(|e| format!("failed to resolve resource dir: {e}"))
 }
 
 /// Writable app data directory — persists the SQLite DB across launches.
 /// macOS:   ~/Library/Application Support/com.dayflow.app/
 /// Windows: %APPDATA%/com.dayflow.app/
-fn data_dir(app: &tauri::AppHandle) -> PathBuf {
+fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
-        .expect("app data dir should exist");
-    std::fs::create_dir_all(&dir).ok();
-    dir
+        .map_err(|e| format!("failed to resolve app data dir: {e}"))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create app data dir {}: {e}", dir.display()))?;
+    Ok(dir)
 }
 
 /// SQLite database URL for the sidecar.
-fn db_url(app: &tauri::AppHandle) -> String {
-    format!("file:{}", data_dir(app).join("data.db").display())
+fn db_url(app: &tauri::AppHandle) -> Result<String, String> {
+    Ok(format!("file:{}", data_dir(app)?.join("data.db").display()))
+}
+
+// ---------------------------------------------------------------------------
+// Startup error log
+// ---------------------------------------------------------------------------
+
+/// Append one line to the persistent startup error log, creating parent
+/// directories as needed. Each entry is prefixed with a unix timestamp.
+fn append_startup_log(path: &Path, message: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    use std::io::Write;
+    writeln!(file, "[{now}] {message}")?;
+    Ok(())
+}
+
+/// Persistent startup error log path. Prefers the app data dir; falls back to
+/// the temp dir when the app data path cannot be resolved.
+fn startup_log_path(app: &tauri::AppHandle) -> PathBuf {
+    match app.path().app_data_dir() {
+        Ok(dir) => dir.join("logs").join("startup-error.log"),
+        Err(_) => std::env::temp_dir().join("dayflow-startup-error.log"),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -50,11 +83,11 @@ fn db_url(app: &tauri::AppHandle) -> String {
 
 /// True when the given TCP port is accepting connections.
 fn port_ready(port: u16) -> bool {
-    TcpStream::connect_timeout(
-        &format!("127.0.0.1:{port}").parse().unwrap(),
-        Duration::from_millis(200),
-    )
-    .is_ok()
+    let addr = match format!("127.0.0.1:{port}").parse::<std::net::SocketAddr>() {
+        Ok(addr) => addr,
+        Err(_) => return false,
+    };
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
 }
 
 fn wait_for_port(port: u16) -> Result<(), String> {
@@ -75,21 +108,21 @@ fn wait_for_port(port: u16) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 /// Run `node <script>` as a one-shot command and wait for it to finish.
-fn run_node_script(
-    app: &tauri::AppHandle,
-    script: &Path,
-    db: &str,
-) -> Result<(), String> {
+fn run_node_script(app: &tauri::AppHandle, script: &Path, db: &str) -> Result<(), String> {
     let sidecar = app
         .shell()
         .sidecar("dayflow-server")
         .map_err(|e| format!("sidecar not found: {e}"))?;
 
+    let script_str = script
+        .to_str()
+        .ok_or_else(|| format!("script path is not valid UTF-8: {}", script.display()))?;
+
     let (mut rx, _child) = sidecar
-        .args([script.to_str().unwrap()])
+        .args([script_str])
         .env("DATABASE_URL", db)
         .env("NODE_ENV", "production")
-        .current_dir(server_dir(app))
+        .current_dir(server_dir(app)?)
         .spawn()
         .map_err(|e| format!("failed to spawn sidecar: {e}"))?;
 
@@ -134,7 +167,7 @@ fn run_node_script(
 
 /// Start the Next.js production server as a persistent sidecar.
 fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
-    let dir = server_dir(app);
+    let dir = server_dir(app)?;
     let server_js = dir.join("server.js");
 
     if !server_js.exists() {
@@ -142,7 +175,7 @@ fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let db = db_url(app);
+    let db = db_url(app)?;
 
     // --- Run DB migration first (one-shot) ---
     let migrate_script = dir.join("scripts").join("migrate.mjs");
@@ -160,8 +193,12 @@ fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
         .sidecar("dayflow-server")
         .map_err(|e| format!("sidecar not found: {e}"))?;
 
+    let server_js_str = server_js
+        .to_str()
+        .ok_or_else(|| format!("server path is not valid UTF-8: {}", server_js.display()))?;
+
     let (_rx, _child) = sidecar
-        .args([server_js.to_str().unwrap(), "--port", &SIDECAR_PORT.to_string()])
+        .args([server_js_str, "--port", &SIDECAR_PORT.to_string()])
         .env("PORT", SIDECAR_PORT.to_string())
         .env("HOSTNAME", "127.0.0.1")
         .env("NODE_ENV", "production")
@@ -181,6 +218,7 @@ fn spawn_server(app: &tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Debug build (pnpm tauri dev) — skip sidecar.
             // CLI runs `beforeDevCommand: "pnpm dev"` → Next.js on :3000.
@@ -191,16 +229,60 @@ pub fn run() {
                 return Ok(());
             }
 
-            spawn_server(app.handle())?;
-            wait_for_port(SIDECAR_PORT)?;
-
-            let url = format!("http://127.0.0.1:{SIDECAR_PORT}");
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.navigate(url.parse().unwrap());
+            if let Err(err) = bootstrap(app.handle()) {
+                let log_path = startup_log_path(app.handle());
+                let _ = append_startup_log(&log_path, &err);
+                let _ = app
+                    .dialog()
+                    .message(format!("{err}\n\nDiagnostic log: {}", log_path.display()))
+                    .title("Dayflow failed to start")
+                    .kind(MessageDialogKind::Error)
+                    .blocking_show();
+                std::process::exit(1);
             }
 
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Run the full startup sequence: migration, server spawn, port wait, navigation.
+fn bootstrap(app: &tauri::AppHandle) -> Result<(), String> {
+    spawn_server(app)?;
+    wait_for_port(SIDECAR_PORT)?;
+
+    let url = format!("http://127.0.0.1:{SIDECAR_PORT}");
+    if let Some(window) = app.get_webview_window("main") {
+        let parsed = url
+            .parse::<tauri::Url>()
+            .map_err(|e| format!("invalid navigation URL {url:?}: {e}"))?;
+        window
+            .navigate(parsed)
+            .map_err(|e| format!("failed to navigate to {url}: {e}"))?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn append_startup_log_creates_parents_and_appends() {
+        let dir =
+            std::env::temp_dir().join(format!("dayflow-startup-log-test-{}", std::process::id()));
+        let log = dir.join("logs").join("startup-error.log");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        append_startup_log(&log, "first failure").expect("first append should succeed");
+        append_startup_log(&log, "second failure").expect("second append should succeed");
+
+        let contents = std::fs::read_to_string(&log).expect("log should be readable");
+        assert!(contents.contains("first failure"));
+        assert!(contents.contains("second failure"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
