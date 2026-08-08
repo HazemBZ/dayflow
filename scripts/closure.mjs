@@ -30,6 +30,21 @@ function findPkgDir(pkg, fromDir) {
 
 const pkgDirs = new Map(); // pkg name -> resolved dir (resolution base for its deps)
 const queue = [{ name: "@libsql/client", optional: false }, { name: "drizzle-orm", optional: false }];
+
+// Next.js's own runtime deps are also dropped by standalone tracing: the
+// bundled server boots via server.js → next/dist/server/next.js → config.js,
+// which require()s @next/env, @swc/helpers, styled-jsx, postcss, etc. from
+// node_modules at runtime (see DAYFLOW issue: MODULE_NOT_FOUND @swc/helpers
+// on first launch). Seed them from next's own dir inside the pnpm store.
+const nextDir = findPkgDir("next", projectDir);
+if (nextDir) {
+  const nextManifest = JSON.parse(readFileSync(join(nextDir, "package.json"), "utf8"));
+  for (const dep of Object.keys(nextManifest.dependencies ?? {})) {
+    pkgDirs.set(dep, nextDir);
+    queue.push({ name: dep, optional: false });
+  }
+}
+
 const seen = new Set();
 let copied = 0;
 
