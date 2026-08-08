@@ -84,6 +84,12 @@ if [ ! -d "$PROJECT_DIR/.next/standalone/public" ] && [ -d "$PROJECT_DIR/public"
   cp -r "$PROJECT_DIR/public" "$PROJECT_DIR/.next/standalone/public"
 fi
 
+# Copy .next/static if missing (Next.js standalone doesn't include it either;
+# the browser gets a skeleton HTML whose CSS/JS chunks all 404 without it)
+if [ ! -d "$PROJECT_DIR/.next/standalone/.next/static" ] && [ -d "$PROJECT_DIR/.next/static" ]; then
+  cp -r "$PROJECT_DIR/.next/static" "$PROJECT_DIR/.next/standalone/.next/static"
+fi
+
 # ------------------------------------------------------------------
 # 2.6 Restore runtime modules Turbopack traced out of standalone output
 # ------------------------------------------------------------------
