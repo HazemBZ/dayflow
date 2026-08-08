@@ -84,6 +84,12 @@ if [ ! -d "$PROJECT_DIR/.next/standalone/public" ] && [ -d "$PROJECT_DIR/public"
   cp -r "$PROJECT_DIR/public" "$PROJECT_DIR/.next/standalone/public"
 fi
 
+# Copy .next/static if missing (Next.js standalone doesn't include it either;
+# the browser gets a skeleton HTML whose CSS/JS chunks all 404 without it)
+if [ ! -d "$PROJECT_DIR/.next/standalone/.next/static" ] && [ -d "$PROJECT_DIR/.next/static" ]; then
+  cp -r "$PROJECT_DIR/.next/static" "$PROJECT_DIR/.next/standalone/.next/static"
+fi
+
 # ------------------------------------------------------------------
 # 2.6 Restore runtime modules Turbopack traced out of standalone output
 # ------------------------------------------------------------------
@@ -114,6 +120,17 @@ if [ ! -d "$STANDALONE_NM/$BINDING_PKG" ]; then
   echo "Error: missing target libsql binding $BINDING_PKG for $TARGET_TRIPLE"
   exit 1
 fi
+
+# ------------------------------------------------------------------
+# 2.7 Rewrite Turbopack hashed external module ids
+# ------------------------------------------------------------------
+# Next.js 16.1+ Turbopack emits external imports with a content hash
+# (`@libsql/client-7664182d7c51b711`) that no installed package matches
+# (vercel/next.js#87737). The standalone server crashes at runtime with
+# ERR_MODULE_NOT_FOUND, so every DB-backed page/route returns 500. Rewrite
+# the output, failing the build if any hashed id survives.
+echo "==> Rewriting hashed external module ids in standalone output..."
+node "$SCRIPT_DIR/rewrite-hashed-externals.mjs" "$STANDALONE_RUNTIME"
 
 # Verify the migration actually runs from an isolated copy of the
 # standalone output (catches anything the closure missed).
