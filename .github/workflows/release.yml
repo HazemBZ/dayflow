@@ -142,9 +142,10 @@ jobs:
             - **macOS** — Download `.dmg`, open, drag to Applications.
             - **Windows** — Download `-setup.exe`, run installer.
 
-            ## Upgrade
+            ## Note
 
-            On next launch Dayflow will auto-update from the previous release.
+            Builds are unsigned, so no auto-update — download the new
+            version manually for each release.
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
