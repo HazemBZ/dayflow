@@ -10,7 +10,7 @@
  * Usage: node scripts/closure.mjs <project-dir> <standalone-node_modules>
  */
 import { join, dirname } from "node:path";
-import { readFileSync, existsSync, cpSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, cpSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 
 const [projectDir, targetNm] = process.argv.slice(2);
 
@@ -21,7 +21,7 @@ function findPkgDir(pkg, fromDir) {
   let dir = fromDir;
   while (true) {
     const candidate = join(dir, "node_modules", pkg);
-    if (existsSync(join(candidate, "package.json"))) return candidate;
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
