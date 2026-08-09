@@ -13,6 +13,9 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 
 import { Badge } from "@/components/ui/badge";
 import { ProjectSelect } from "@/components/todos/project-select";
@@ -77,6 +80,19 @@ function formatTime(timestamp: string): string {
     day: "numeric",
     year: "numeric",
   }).format(new Date(timestamp));
+}
+
+const CARD_MARKDOWN_STYLES =
+  "min-w-0 [&_p]:m-0 [&_ul]:m-0 [&_ol]:m-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:m-0 [&_li]:marker:text-muted-foreground [&_pre]:m-0 [&_blockquote]:m-0";
+
+function cardPreviewLines(text: string): string {
+  const lines: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    lines.push(line);
+    if (lines.length === 2) break;
+  }
+  return lines.join("\n");
 }
 
 function statusVariant(status: TodoStatus): "default" | "secondary" | "outline" {
@@ -301,8 +317,8 @@ export default function TodosPage() {
           </div>
         </div>
       }
-      maxWidth="max-w-5xl"
-      scrollContentClass="space-y-4 pt-4"
+      maxWidth="max-w-3xl"
+      scrollContentClass="space-y-4 pt-6"
     >
       <Card size="sm">
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -394,7 +410,9 @@ export default function TodosPage() {
                   {todo.status === "done" ? <CheckCircle2 className="text-primary" /> : <Circle />}
                 </Button>
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => router.push(`/todos/${todo.id}`)}>
-                  <p className={cn("line-clamp-2 text-sm font-medium", todo.status === "done" && "text-muted-foreground line-through")}>{todo.text}</p>
+                  <div className={cn("line-clamp-2 text-sm font-medium", CARD_MARKDOWN_STYLES, todo.status === "done" && "text-muted-foreground line-through")}>
+  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{cardPreviewLines(todo.text)}</ReactMarkdown>
+</div>
                   <p className="mt-1 text-xs text-muted-foreground">Updated {formatTime(todo.updatedAt)}{todo.assignedTo ? ` · ${todo.assignedTo}` : " · Unassigned"}</p>
                   {todo.projectId && (() => {
                     const project = projectsById.get(todo.projectId);
@@ -424,7 +442,7 @@ export default function TodosPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>New Todo</DialogTitle><DialogDescription>Create a trackable item in the canonical Todo queue.</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <label className="block space-y-1.5"><span className="text-sm font-medium">Todo</span><Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Describe work to do" className="min-h-32" /></label>
+            <label className="block space-y-1.5"><span className="text-sm font-medium">Todo</span><Textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Describe work to do" className="max-h-48 min-h-32 overflow-y-auto" /></label>
             <label className="block space-y-1.5"><span className="text-sm font-medium">Severity</span><Select value={draftSeverity} onValueChange={(value) => setDraftSeverity(todoSeveritySchema.parse(value))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TODO_SEVERITIES.map((item) => <SelectItem key={item} value={item}>{SEVERITY_LABELS[item]}</SelectItem>)}</SelectContent></Select></label>
             <ProjectSelect projects={projects} value={draftProjectId} onValueChange={setDraftProjectId} disabled={projectsLoading || saving} />
           </div>

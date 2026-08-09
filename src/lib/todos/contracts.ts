@@ -25,7 +25,7 @@ export const todoTextSchema = z
   .string()
   .trim()
   .min(1)
-  .max(10_000)
+  .max(100_000)
   .refine((text) => text.length > 0, "Todo text cannot be blank");
 export const agentIdSchema = z.string().trim().min(1).max(128);
 
