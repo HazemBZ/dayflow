@@ -148,13 +148,16 @@ roadmap:
       - name: Final build and lint pass verification
         status: completed
   - phase: P7 - Persistence & Fixes
-    status: in_progress
+    status: completed
     started: 2026-06-30
+    completed: 2026-08-02
     milestones:
       - name: Quick notes moved from localStorage to DB
         status: completed
       - name: Canvas spatial view for notes
-        status: in_progress
+        status: completed
+      - name: Linked canonical Todo nodes on Canvas
+        status: completed
     tasks:
       - name: Add quick_notes table to Drizzle schema
         status: completed
@@ -177,6 +180,8 @@ roadmap:
       - name: Create canvas-store (reactive, subscribe/getSnapshot)
         status: completed
       - name: Build /canvas page with React Flow
+        status: completed
+      - name: Add canonical Todo placement, Canvas controls, and lifecycle cleanup
         status: completed
       - name: Add Canvas nav item to sidebar
         status: completed
@@ -201,8 +206,9 @@ roadmap:
       - name: Build verification passes
         status: completed
   - phase: P9 - Production Hardening
-    status: in_progress
+    status: completed
     started: 2026-07-02
+    completed: 2026-07-09
     milestones:
       - name: Fix server OOM (heap out of memory)
         status: completed
@@ -263,3 +269,7 @@ roadmap:
         status: completed
       - name: Add tests, documentation, and verification
         status: in_progress
+      - name: Authenticated run-bound Todo worker PoC
+        status: completed
+        started: 2026-08-03
+        completed: 2026-08-03
