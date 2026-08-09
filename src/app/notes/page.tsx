@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageScroll } from "@/components/ui/page-scroll";
 import { cn } from "@/lib/utils";
-import { Plus, ExternalLink, Pencil, Trash2, StickyNote, Bookmark, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, ExternalLink, Pencil, Trash2, StickyNote, Bookmark, Archive, ArchiveRestore, Lightbulb, Brain } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -67,6 +67,8 @@ export default function NotesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [showIdeas, setShowIdeas] = useState(false);
+  const [showThoughts, setShowThoughts] = useState(false);
   const [draft, setDraft] = useState("");
   const [previewMode, setPreviewMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -78,7 +80,9 @@ export default function NotesPage() {
   const tagFiltered = selectedTags.length > 0
     ? baseNotes.filter((n) => selectedTags.some((t) => n.tags.includes(t)))
     : baseNotes;
-  const filteredNotes = showBookmarked ? tagFiltered.filter((n) => n.bookmarked) : tagFiltered;
+  const ideaFiltered = showIdeas ? tagFiltered.filter((n) => n.tags.includes("idea")) : tagFiltered;
+  const thoughtFiltered = showThoughts ? ideaFiltered.filter((n) => n.tags.includes("thought")) : ideaFiltered;
+  const filteredNotes = showBookmarked ? thoughtFiltered.filter((n) => n.bookmarked) : thoughtFiltered;
 
   const dialogOpen = createOpen || editNote !== null;
 
@@ -199,14 +203,68 @@ export default function NotesPage() {
       scrollContentClass="space-y-4 pt-6"
     >
       {/* Tags filter */}
-      {allTags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
+      <div className="flex flex-wrap items-center gap-1.5 px-1">
+        <button
+          type="button"
+          onClick={() => setShowIdeas((v) => !v)}
+          className={cn(
+            "inline-flex size-7 items-center justify-center rounded-full border transition-colors",
+            showIdeas
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-input bg-background text-muted-foreground hover:text-foreground",
+          )}
+          aria-label="Filter notes tagged idea"
+          aria-pressed={showIdeas}
+          title="Filter notes tagged idea"
+        >
+          <Lightbulb className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowThoughts((v) => !v)}
+          className={cn(
+            "inline-flex size-7 items-center justify-center rounded-full border transition-colors",
+            showThoughts
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-input bg-background text-muted-foreground hover:text-foreground",
+          )}
+          aria-label="Filter notes tagged thought"
+          aria-pressed={showThoughts}
+          title="Filter notes tagged thought"
+        >
+          <Brain className="size-3.5" />
+        </button>
+        {allTags.length > 0 && (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          {/* Selected tags as pills */}
+          {selectedTags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex h-5 items-center gap-0.5 rounded-full bg-primary/10 px-2 text-[11px] font-medium text-primary"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTags((prev) => prev.filter((t) => t !== tag))
+                }
+                className="inline-flex size-3 items-center justify-center rounded-full hover:bg-primary/20"
+                aria-label={`Remove ${tag} filter`}
+              >
+                <svg className="size-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </span>
+          ))}
+
           {/* Dropdown toggle */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowTagDropdown((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-full border border-input bg-background px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex h-6 items-center gap-1 rounded-full border border-input bg-background px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               {selectedTags.length === 0 ? "All tags" : `Tags (${selectedTags.length})`}
               <svg
@@ -228,7 +286,7 @@ export default function NotesPage() {
                   className="fixed inset-0 z-10"
                   onClick={() => setShowTagDropdown(false)}
                 />
-                <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border bg-popover p-1.5 shadow-md">
+                <div className="absolute right-0 top-full z-20 mt-1 max-h-56 w-44 space-y-0.5 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md">
                   <button
                     type="button"
                     onClick={() => {
@@ -236,7 +294,7 @@ export default function NotesPage() {
                       setShowTagDropdown(false);
                     }}
                     className={cn(
-                      "flex w-full items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      "flex w-full items-center rounded-md px-2 py-1 text-xs font-medium transition-colors",
                       selectedTags.length === 0
                         ? "bg-primary text-primary-foreground"
                         : "text-popover-foreground hover:bg-muted",
@@ -258,7 +316,7 @@ export default function NotesPage() {
                           );
                         }}
                         className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors",
+                          "flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
                           active
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-popover-foreground hover:bg-muted",
@@ -279,31 +337,9 @@ export default function NotesPage() {
               </>
             )}
           </div>
-
-          {/* Selected tags as pills */}
-          {selectedTags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedTags((prev) => prev.filter((t) => t !== tag))
-                }
-                className="inline-flex size-3.5 items-center justify-center rounded-full hover:bg-primary/20"
-                aria-label={`Remove ${tag} filter`}
-              >
-                <svg className="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="space-y-3">
