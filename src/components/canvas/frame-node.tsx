@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import {
   Handle,
   Position,
@@ -21,6 +21,10 @@ export type FrameNodeType = Node<FrameNodeData, "frame">;
 
 function FrameNodeComponent({ data, selected, id }: NodeProps<FrameNodeType>) {
   const color = data.color ?? "hsl(220, 70%, 60%)";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const committingRef = useRef(false);
 
   const onResizeEnd = useCallback(
     (_event: unknown, params: ResizeParams) => {
@@ -38,6 +42,61 @@ function FrameNodeComponent({ data, selected, id }: NodeProps<FrameNodeType>) {
     },
     [id],
   );
+
+  const startEditing = useCallback(() => {
+    setDraft(data.label);
+    setEditing(true);
+    requestAnimationFrame(() => inputRef.current?.select());
+  }, [data.label]);
+
+  const commit = useCallback(async () => {
+    if (committingRef.current) return;
+    committingRef.current = true;
+    try {
+      const trimmed = draft.trim();
+      setEditing(false);
+      if (!trimmed || trimmed === data.label) return;
+      const cf = canvasStore.getFrames().find((f) => f.id === id);
+      if (cf) {
+        await canvasStore.upsertFrame(
+          id,
+          trimmed,
+          cf.x,
+          cf.y,
+          cf.width,
+          cf.height,
+          cf.color,
+        );
+      }
+    } finally {
+      committingRef.current = false;
+    }
+  }, [draft, data.label, id]);
+
+  const cancelEditing = useCallback(() => {
+    setDraft(data.label);
+    setEditing(false);
+  }, [data.label]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // Prevent React Flow from intercepting
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEditing();
+      }
+    },
+    [commit, cancelEditing],
+  );
+
+  // Stop propagation so the input doesn't trigger node drag/select
+  const handleEditorMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
 
   return (
     <div
@@ -71,7 +130,31 @@ function FrameNodeComponent({ data, selected, id }: NodeProps<FrameNodeType>) {
           className="size-2 rounded-sm shrink-0"
           style={{ backgroundColor: color }}
         />
-        {data.label}
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => void commit()}
+            onMouseDown={handleEditorMouseDown}
+            className="nodrag min-w-0 flex-1 rounded bg-transparent px-1 -mx-1 text-xs font-semibold tracking-wide outline-none focus:border focus:border-primary/40 focus:bg-background/60"
+            style={{ color: "inherit" }}
+            aria-label="Frame name"
+          />
+        ) : (
+          <span
+            className="nodrag min-w-0 flex-1 cursor-text truncate rounded px-1 -mx-1 hover:bg-background/40"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              startEditing();
+            }}
+            onMouseDown={handleEditorMouseDown}
+            title="Double-click to rename"
+          >
+            {data.label}
+          </span>
+        )}
       </div>
 
       {/* Invisible handles so edges can connect to frames */}
