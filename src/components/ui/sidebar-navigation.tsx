@@ -8,6 +8,7 @@ import type { PageActivationState } from "@/components/ui/sidebar";
 
 const NAV_ITEMS = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
+  { title: "Notes", href: "/notes", icon: StickyNote },
   { title: "Todos", href: "/todos", icon: ListTodo },
   { title: "Weekly", href: "/weekly", icon: CalendarCheck },
   { title: "Scorecard", href: "/scorecard", icon: Target },
@@ -15,7 +16,6 @@ const NAV_ITEMS = [
   { title: "Budget", href: "/budget", icon: Clock },
   { title: "History", href: "/history", icon: History },
   { title: "Canvas", href: "/canvas", icon: Workflow },
-  { title: "Notes", href: "/notes", icon: StickyNote },
   { title: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
