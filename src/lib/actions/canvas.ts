@@ -3,7 +3,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { canvases, canvasNodes, canvasEdges, canvasFrames, canvasGenericNodes } from "@/lib/db/schema";
+import { canvases, canvasNodes, canvasTodoNodes, canvasEdges, canvasFrames, canvasGenericNodes } from "@/lib/db/schema";
 
 // ─── Canvas ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +114,7 @@ export async function deleteCanvas(id: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(canvasEdges).where(eq(canvasEdges.canvasId, id));
     await tx.delete(canvasNodes).where(eq(canvasNodes.canvasId, id));
+    await tx.delete(canvasTodoNodes).where(eq(canvasTodoNodes.canvasId, id));
     await tx.delete(canvasGenericNodes).where(eq(canvasGenericNodes.canvasId, id));
     await tx.delete(canvasFrames).where(eq(canvasFrames.canvasId, id));
     await tx.delete(canvases).where(eq(canvases.id, id));
@@ -182,6 +183,68 @@ export async function removeCanvasNode(canvasId: string, noteId: string) {
     );
 }
 
+export type CanvasTodoNodeRow = {
+  canvasId: string;
+  todoId: string;
+  x: number;
+  y: number;
+  frameId: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export async function getCanvasTodoNodes(canvasId: string): Promise<CanvasTodoNodeRow[]> {
+  const rows = await db
+    .select()
+    .from(canvasTodoNodes)
+    .where(eq(canvasTodoNodes.canvasId, canvasId));
+  return rows.map((row) => ({
+    canvasId: row.canvasId,
+    todoId: row.todoId,
+    x: row.x,
+    y: row.y,
+    frameId: row.frameId ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
+}
+
+export async function upsertCanvasTodoNode(
+  canvasId: string,
+  todoId: string,
+  x: number,
+  y: number,
+): Promise<CanvasTodoNodeRow> {
+  const now = Date.now();
+  const existing = await db
+    .select({ frameId: canvasTodoNodes.frameId, createdAt: canvasTodoNodes.createdAt })
+    .from(canvasTodoNodes)
+    .where(and(eq(canvasTodoNodes.canvasId, canvasId), eq(canvasTodoNodes.todoId, todoId)))
+    .limit(1);
+  const current = existing[0];
+  const frameId = current?.frameId ?? null;
+  const createdAt = current?.createdAt ?? now;
+  await db
+    .insert(canvasTodoNodes)
+    .values({ canvasId, todoId, x, y, frameId, createdAt, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [canvasTodoNodes.canvasId, canvasTodoNodes.todoId],
+      set: { x, y, updatedAt: now },
+    });
+  return { canvasId, todoId, x, y, frameId, createdAt, updatedAt: now };
+}
+
+export async function removeCanvasTodoNode(canvasId: string, todoId: string): Promise<void> {
+  await db
+    .delete(canvasTodoNodes)
+    .where(
+      and(
+        eq(canvasTodoNodes.canvasId, canvasId),
+        eq(canvasTodoNodes.todoId, todoId),
+      ),
+    );
+}
+
 // ─── Canvas Frames ─────────────────────────────────────────────────────────
 
 export type CanvasFrameRow = {
@@ -242,6 +305,10 @@ export async function removeCanvasFrame(canvasId: string, id: string) {
     .set({ frameId: null })
     .where(and(eq(canvasNodes.canvasId, canvasId), eq(canvasNodes.frameId, id)));
   await db
+    .update(canvasTodoNodes)
+    .set({ frameId: null })
+    .where(and(eq(canvasTodoNodes.canvasId, canvasId), eq(canvasTodoNodes.frameId, id)));
+  await db
     .update(canvasGenericNodes)
     .set({ frameId: null })
     .where(and(eq(canvasGenericNodes.canvasId, canvasId), eq(canvasGenericNodes.frameId, id)));
@@ -259,6 +326,22 @@ export async function setNodeFrame(
     .update(canvasNodes)
     .set({ frameId })
     .where(and(eq(canvasNodes.canvasId, canvasId), eq(canvasNodes.noteId, noteId)));
+}
+
+export async function setTodoNodeFrame(
+  canvasId: string,
+  todoId: string,
+  frameId: string | null,
+): Promise<void> {
+  await db
+    .update(canvasTodoNodes)
+    .set({ frameId, updatedAt: Date.now() })
+    .where(
+      and(
+        eq(canvasTodoNodes.canvasId, canvasId),
+        eq(canvasTodoNodes.todoId, todoId),
+      ),
+    );
 }
 
 // ─── Canvas Generic Nodes ──────────────────────────────────────────────────

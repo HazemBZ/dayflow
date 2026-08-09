@@ -165,6 +165,18 @@ export const canvasNodes = sqliteTable("canvas_nodes", {
   pk: primaryKey({ columns: [table.canvasId, table.noteId] }),
 }));
 
+export const canvasTodoNodes = sqliteTable("canvas_todo_nodes", {
+  canvasId: text("canvas_id").notNull(),
+  todoId: text("todo_id").notNull(),
+  x: real("x").notNull().default(0),
+  y: real("y").notNull().default(0),
+  frameId: text("frame_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.canvasId, table.todoId] }),
+}));
+
 // ─── Canvas Frames ──────────────────────────────────────────────────────────
 export const canvasFrames = sqliteTable("canvas_frames", {
   id: text("id").primaryKey(),

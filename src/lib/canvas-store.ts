@@ -7,6 +7,9 @@ import {
   getCanvasNodes,
   upsertCanvasNode,
   removeCanvasNode,
+  getCanvasTodoNodes,
+  upsertCanvasTodoNode,
+  removeCanvasTodoNode,
   getCanvasEdges,
   addCanvasEdge,
   removeCanvasEdge,
@@ -14,6 +17,7 @@ import {
   upsertCanvasFrame,
   removeCanvasFrame,
   setNodeFrame,
+  setTodoNodeFrame,
   getCanvasGenericNodes,
   upsertCanvasGenericNode,
   updateCanvasGenericNodeContent,
@@ -23,17 +27,19 @@ import {
   updateCanvasUIState,
   type CanvasRow,
   type CanvasNodeRow,
+  type CanvasTodoNodeRow,
   type CanvasEdgeRow,
   type CanvasFrameRow,
   type CanvasGenericNodeRow,
 } from "@/lib/actions/canvas";
 
-export type { CanvasRow, CanvasNodeRow, CanvasEdgeRow, CanvasFrameRow, CanvasGenericNodeRow };
+export type { CanvasRow, CanvasNodeRow, CanvasTodoNodeRow, CanvasEdgeRow, CanvasFrameRow, CanvasGenericNodeRow };
 
 type Listener = () => void;
 
 let _canvases: CanvasRow[] = [];
 let _nodes: CanvasNodeRow[] = [];
+let _todoNodes: CanvasTodoNodeRow[] = [];
 let _edges: CanvasEdgeRow[] = [];
 let _frames: CanvasFrameRow[] = [];
 let _genericNodes: CanvasGenericNodeRow[] = [];
@@ -48,6 +54,8 @@ let _lastCanvasesKey = "";
 let _lastCanvasesSnapshot: readonly CanvasRow[] = _emptyArr;
 let _lastNodesKey = "";
 let _lastNodesSnapshot: readonly CanvasNodeRow[] = _emptyArr;
+let _lastTodoNodesKey = "";
+let _lastTodoNodesSnapshot: readonly CanvasTodoNodeRow[] = _emptyArr;
 let _lastEdgesKey = "";
 let _lastEdgesSnapshot: readonly CanvasEdgeRow[] = _emptyArr;
 let _lastFramesKey = "";
@@ -60,6 +68,9 @@ function serializeCanvases(list: CanvasRow[]): string {
 }
 function serializeNodes(nodes: CanvasNodeRow[]): string {
   return JSON.stringify(nodes.map((n) => [n.noteId, n.x, n.y]));
+}
+function serializeTodoNodes(nodes: CanvasTodoNodeRow[]): string {
+  return JSON.stringify(nodes.map((n) => [n.todoId, n.x, n.y, n.frameId]));
 }
 function serializeEdges(edges: CanvasEdgeRow[]): string {
   return JSON.stringify(edges.map((e) => [e.id, e.sourceNoteId, e.targetNoteId]));
@@ -98,13 +109,15 @@ export const canvasStore = {
     const targetId = canvasId ?? _canvases[0].id;
     _activeCanvasId = targetId;
 
-    const [nodes, edges, frames, genericNodes] = await Promise.all([
+    const [nodes, todoNodes, edges, frames, genericNodes] = await Promise.all([
       getCanvasNodes(targetId),
+      getCanvasTodoNodes(targetId),
       getCanvasEdges(targetId),
       getCanvasFrames(targetId),
       getCanvasGenericNodes(targetId),
     ]);
     _nodes = nodes;
+    _todoNodes = todoNodes;
     _edges = edges;
     _frames = frames;
     _genericNodes = genericNodes;
@@ -112,6 +125,7 @@ export const canvasStore = {
     _loaded = true;
     _lastCanvasesKey = "";
     _lastNodesKey = "";
+    _lastTodoNodesKey = "";
     _lastEdgesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
@@ -122,18 +136,21 @@ export const canvasStore = {
 
   async setActiveCanvas(canvasId: string): Promise<void> {
     if (canvasId === _activeCanvasId) return;
-    const [nodes, edges, frames, genericNodes] = await Promise.all([
+    const [nodes, todoNodes, edges, frames, genericNodes] = await Promise.all([
       getCanvasNodes(canvasId),
+      getCanvasTodoNodes(canvasId),
       getCanvasEdges(canvasId),
       getCanvasFrames(canvasId),
       getCanvasGenericNodes(canvasId),
     ]);
     _activeCanvasId = canvasId;
     _nodes = nodes;
+    _todoNodes = todoNodes;
     _edges = edges;
     _frames = frames;
     _genericNodes = genericNodes;
     _lastNodesKey = "";
+    _lastTodoNodesKey = "";
     _lastEdgesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
@@ -220,6 +237,10 @@ export const canvasStore = {
     return _nodes;
   },
 
+  getTodoNodes(): readonly CanvasTodoNodeRow[] {
+    return _todoNodes;
+  },
+
   getEdges(): readonly CanvasEdgeRow[] {
     return _edges;
   },
@@ -244,6 +265,27 @@ export const canvasStore = {
     _edges = _edges.filter((e) => e.sourceNoteId !== noteId && e.targetNoteId !== noteId);
     _lastNodesKey = "";
     _lastEdgesKey = "";
+    notify();
+  },
+
+  async upsertTodoNode(todoId: string, x: number, y: number): Promise<void> {
+    if (!_activeCanvasId) return;
+    const node = await upsertCanvasTodoNode(_activeCanvasId, todoId, x, y);
+    const index = _todoNodes.findIndex((current) => current.todoId === todoId);
+    if (index >= 0) {
+      _todoNodes[index] = node;
+    } else {
+      _todoNodes.push(node);
+    }
+    _lastTodoNodesKey = "";
+    notify();
+  },
+
+  async removeTodoNode(todoId: string): Promise<void> {
+    if (!_activeCanvasId) return;
+    await removeCanvasTodoNode(_activeCanvasId, todoId);
+    _todoNodes = _todoNodes.filter((node) => node.todoId !== todoId);
+    _lastTodoNodesKey = "";
     notify();
   },
 
@@ -301,12 +343,16 @@ export const canvasStore = {
         (node as CanvasNodeRow & { frameId: string | null }).frameId = null;
       }
     }
+    _todoNodes = _todoNodes.map((node) =>
+      node.frameId === id ? { ...node, frameId: null } : node,
+    );
     for (const gn of _genericNodes) {
       if (gn.frameId === id) {
         (gn as CanvasGenericNodeRow & { frameId: string | null }).frameId = null;
       }
     }
     _lastNodesKey = "";
+    _lastTodoNodesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
     notify();
@@ -320,6 +366,16 @@ export const canvasStore = {
       (node as CanvasNodeRow & { frameId: string | null }).frameId = frameId;
     }
     _lastNodesKey = "";
+    notify();
+  },
+
+  async setTodoNodeFrame(todoId: string, frameId: string | null): Promise<void> {
+    if (!_activeCanvasId) return;
+    await setTodoNodeFrame(_activeCanvasId, todoId, frameId);
+    _todoNodes = _todoNodes.map((node) =>
+      node.todoId === todoId ? { ...node, frameId } : node,
+    );
+    _lastTodoNodesKey = "";
     notify();
   },
 
@@ -404,6 +460,15 @@ export const canvasStore = {
       _lastNodesKey = key;
     }
     return _lastNodesSnapshot;
+  },
+
+  getTodoNodesSnapshot(): readonly CanvasTodoNodeRow[] {
+    const key = serializeTodoNodes(_todoNodes);
+    if (key !== _lastTodoNodesKey) {
+      _lastTodoNodesSnapshot = Object.freeze([..._todoNodes]);
+      _lastTodoNodesKey = key;
+    }
+    return _lastTodoNodesSnapshot;
   },
 
   getEdgesSnapshot(): readonly CanvasEdgeRow[] {

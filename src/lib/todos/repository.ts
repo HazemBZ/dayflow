@@ -9,7 +9,7 @@ import {
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 
 import type * as schema from "@/lib/db/schema";
-import { todos } from "@/lib/db/schema";
+import { canvasTodoNodes, todos } from "@/lib/db/schema";
 import type { Todo as TodoRow } from "@/lib/db/schema";
 import type {
   ParsedCreateTodoInput,
@@ -120,12 +120,17 @@ class DrizzleTodoRepository implements TodoRepository {
   }
 
   async delete(id: string): Promise<RepositoryDeleteResult> {
-    const rows = await this.#db
-      .delete(todos)
-      .where(eq(todos.id, id))
-      .returning();
-    const row = rows[0];
-    return row ? { kind: "success", row } : { kind: "not_found" };
+    return this.#db.transaction(async (tx) => {
+      await tx
+        .delete(canvasTodoNodes)
+        .where(eq(canvasTodoNodes.todoId, id));
+      const rows = await tx
+        .delete(todos)
+        .where(eq(todos.id, id))
+        .returning();
+      const row = rows[0];
+      return row ? { kind: "success", row } : { kind: "not_found" };
+    });
   }
 
   async claim(

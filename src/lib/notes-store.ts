@@ -42,11 +42,12 @@ export const notesStore = {
     return _notes;
   },
 
-  async add(text: string) {
-    const note = await addNote(text);
+  async add(text: string, tags?: string[]): Promise<Note> {
+    const note = await addNote(text, tags);
     _notes = [note, ..._notes];
     _lastSnapshotKey = "";
     notify();
+    return note;
   },
 
   async remove(id: string) {
