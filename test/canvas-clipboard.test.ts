@@ -6,6 +6,7 @@ import type {
   CanvasFrameRow,
   CanvasGenericNodeRow,
   CanvasNodeRow,
+  CanvasNoteNodeRow,
   CanvasTodoNodeRow,
 } from "@/lib/actions/canvas";
 import {
@@ -49,6 +50,20 @@ function genericRow(overrides: Partial<CanvasGenericNodeRow> = {}): CanvasGeneri
     content: "Generic",
     x: 0,
     y: 0,
+    frameId: null,
+    ...overrides,
+  };
+}
+
+function canvasNoteRow(overrides: Partial<CanvasNoteNodeRow> = {}): CanvasNoteNodeRow {
+  return {
+    canvasId: "canvas_1",
+    id: "cnote_1",
+    content: "Note",
+    x: 0,
+    y: 0,
+    width: 280,
+    height: 200,
     frameId: null,
     ...overrides,
   };
@@ -101,6 +116,7 @@ function makeInput(
     nodes: [],
     todoNodes: [],
     genericNodes: [],
+    noteNodes: [],
     frames: [],
     edges: [],
     todosById: new Map(),
@@ -193,6 +209,7 @@ test("captures selected frames and expands their children", () => {
       nodes: [noteRow({ noteId: "note_1", x: 10, y: 20, frameId: "frame_1" })],
       todoNodes: [todoNodeRow({ todoId: "todo_1", x: 30, y: 40, frameId: "frame_1" })],
       genericNodes: [genericRow({ id: "gen_1", x: 50, y: 60, frameId: "frame_1" })],
+      noteNodes: [canvasNoteRow({ id: "cnote_1", x: 70, y: 80, frameId: "frame_1" })],
       todosById: new Map([["todo_1", todoDto()]]),
     }),
   );
@@ -208,7 +225,34 @@ test("captures selected frames and expands their children", () => {
     { kind: "note", id: "note_1", frameId: "frame_1" },
     { kind: "todo", id: "todo:todo_1", frameId: "frame_1" },
     { kind: "generic", id: "gen_1", frameId: "frame_1" },
+    { kind: "canvasNote", id: "cnote_1", frameId: "frame_1" },
   ]);
+});
+
+test("captures selected canvas notes with size", () => {
+  const plan = planClipboardSelection(
+    makeInput({
+      selectedIds: ["cnote_1"],
+      noteNodes: [
+        canvasNoteRow({ id: "cnote_1", content: "Sticky idea", x: 12, y: 34, width: 320, height: 180 }),
+      ],
+    }),
+  );
+
+  assert.ok(plan);
+  assert.deepEqual(plan.items, [
+    {
+      kind: "canvasNote",
+      id: "cnote_1",
+      content: "Sticky idea",
+      x: 12,
+      y: 34,
+      width: 320,
+      height: 180,
+      frameId: null,
+    },
+  ]);
+  assert.deepEqual(plan.edges, []);
 });
 
 test("deduplicates children selected together with their frame", () => {

@@ -3,6 +3,7 @@ import type {
   CanvasFrameRow,
   CanvasGenericNodeRow,
   CanvasNodeRow,
+  CanvasNoteNodeRow,
   CanvasTodoNodeRow,
 } from "@/lib/actions/canvas";
 import type { TodoDto, TodoSeverity, TodoStatus } from "@/lib/todos/contracts";
@@ -20,6 +21,7 @@ import type { TodoDto, TodoSeverity, TodoStatus } from "@/lib/todos/contracts";
  * - note nodes:   the note ID
  * - todo nodes:   `todo:<todoId>`
  * - generic nodes: the generic node ID
+ * - canvas notes: the canvas note node ID
  * - frame nodes:  the frame ID
  */
 export const CLIPBOARD_NUDGE = 40;
@@ -56,6 +58,17 @@ export type ClipboardGenericItem = Readonly<{
   frameId: string | null;
 }>;
 
+export type ClipboardCanvasNoteItem = Readonly<{
+  kind: "canvasNote";
+  id: string;
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  frameId: string | null;
+}>;
+
 export type ClipboardFrameItem = Readonly<{
   kind: "frame";
   id: string;
@@ -71,6 +84,7 @@ export type ClipboardItem =
   | ClipboardNoteItem
   | ClipboardTodoItem
   | ClipboardGenericItem
+  | ClipboardCanvasNoteItem
   | ClipboardFrameItem;
 
 export type ClipboardEdge = Readonly<{
@@ -95,6 +109,7 @@ export type ClipboardSelectionInput = Readonly<{
   nodes: readonly CanvasNodeRow[];
   todoNodes: readonly CanvasTodoNodeRow[];
   genericNodes: readonly CanvasGenericNodeRow[];
+  noteNodes: readonly CanvasNoteNodeRow[];
   frames: readonly CanvasFrameRow[];
   edges: readonly CanvasEdgeRow[];
   /** Enrichment lookup for todo nodes; a todo node without an entry is skipped. */
@@ -113,8 +128,8 @@ function isTodoFlowId(flowId: string): boolean {
  * Builds a {@link ClipboardPlan} for the given selection, or `null` when
  * nothing would be copied (empty or unresolvable selection).
  *
- * - Selecting a frame pulls in every child node (notes, todos, generics)
- *   nested under that frame.
+ * - Selecting a frame pulls in every child node (notes, todos, generics,
+ *   canvas notes) nested under that frame.
  * - Expansion and overlapping selections are deduplicated by flow node ID.
  * - Only note edges whose both endpoints are captured are retained.
  * - An item whose `frameId` points at a frame that is NOT captured gets its
@@ -128,6 +143,7 @@ export function planClipboardSelection(
   const notesById = new Map(input.nodes.map((node) => [node.noteId, node]));
   const todoNodesById = new Map(input.todoNodes.map((node) => [node.todoId, node]));
   const genericsById = new Map(input.genericNodes.map((node) => [node.id, node]));
+  const noteNodesById = new Map(input.noteNodes.map((node) => [node.id, node]));
   const framesById = new Map(input.frames.map((frame) => [frame.id, frame]));
 
   const items: ClipboardItem[] = [];
@@ -158,6 +174,9 @@ export function planClipboardSelection(
       for (const node of input.genericNodes) {
         if (node.frameId === frame.id) addItem(node.id);
       }
+      for (const node of input.noteNodes) {
+        if (node.frameId === frame.id) addItem(node.id);
+      }
       return;
     }
 
@@ -183,6 +202,21 @@ export function planClipboardSelection(
         x: generic.x,
         y: generic.y,
         frameId: generic.frameId,
+      });
+      return;
+    }
+
+    const noteNode = noteNodesById.get(flowId);
+    if (noteNode) {
+      items.push({
+        kind: "canvasNote",
+        id: noteNode.id,
+        content: noteNode.content,
+        x: noteNode.x,
+        y: noteNode.y,
+        width: noteNode.width,
+        height: noteNode.height,
+        frameId: noteNode.frameId,
       });
       return;
     }
