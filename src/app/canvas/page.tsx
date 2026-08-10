@@ -20,11 +20,12 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { notesStore, type Note } from "@/lib/notes-store";
-import { canvasStore, type CanvasNodeRow, type CanvasTodoNodeRow, type CanvasEdgeRow, type CanvasRow, type CanvasFrameRow, type CanvasGenericNodeRow } from "@/lib/canvas-store";
+import { canvasStore, type CanvasNodeRow, type CanvasTodoNodeRow, type CanvasEdgeRow, type CanvasRow, type CanvasFrameRow, type CanvasGenericNodeRow, type CanvasNoteNodeRow } from "@/lib/canvas-store";
 import { NoteNode, type NoteNodeType, type NoteNodeData } from "@/components/canvas/note-node";
 import { TodoNode, type TodoNodeType } from "@/components/canvas/todo-node";
 import { FrameNode, type FrameNodeType, type FrameNodeData } from "@/components/canvas/frame-node";
 import { GenericNode, type GenericNodeType, type GenericNodeData } from "@/components/canvas/generic-node";
+import { CanvasNoteNode, type CanvasNoteNodeType, type CanvasNoteNodeData } from "@/components/canvas/canvas-note-node";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -60,6 +61,7 @@ const nodeTypes = {
   todo: TodoNode,
   frame: FrameNode,
   generic: GenericNode,
+  canvasNote: CanvasNoteNode,
 };
 
 function todoFlowId(todoId: string): string {
@@ -83,11 +85,12 @@ function CanvasPageInner() {
   const [canvasEdges, setCanvasEdges] = useState<CanvasEdgeRow[]>([]);
   const [canvasFrames, setCanvasFrames] = useState<CanvasFrameRow[]>([]);
   const [canvasGenericNodes, setCanvasGenericNodes] = useState<CanvasGenericNodeRow[]>([]);
+  const [canvasNoteNodes, setCanvasNoteNodes] = useState<CanvasNoteNodeRow[]>([]);
   const [canvases, setCanvases] = useState<CanvasRow[]>([]);
   const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<(NoteNodeType | TodoNodeType | FrameNodeType | GenericNodeType)>([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<(NoteNodeType | TodoNodeType | FrameNodeType | GenericNodeType | CanvasNoteNodeType)>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // UI state restored from canvas
@@ -114,7 +117,7 @@ function CanvasPageInner() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const frameStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
   const frameChildrenRef = useRef<
-    Map<string, Array<{ nodeId: string; nodeType: "note" | "todo" | "generic"; x: number; y: number }>>
+    Map<string, Array<{ nodeId: string; nodeType: "note" | "todo" | "generic" | "canvasNote"; x: number; y: number }>>
   >(new Map());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const addCounter = useRef(0);
@@ -175,6 +178,7 @@ function CanvasPageInner() {
         setCanvasEdges([...canvasStore.getEdges()]);
         setCanvasFrames([...canvasStore.getFrames()]);
         setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
+        setCanvasNoteNodes([...canvasStore.getNoteNodes()]);
         setCanvases([...canvasStore.getCanvases()]);
         setActiveCanvasId(canvasStore.activeCanvasId);
         const active = canvasStore.activeCanvasId;
@@ -202,6 +206,7 @@ function CanvasPageInner() {
       setCanvasEdges([...canvasStore.getEdges()]);
       setCanvasFrames([...canvasStore.getFrames()]);
       setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
+      setCanvasNoteNodes([...canvasStore.getNoteNodesSnapshot()]);
       setCanvases([...canvasStore.getCanvases()]);
       setActiveCanvasId(canvasStore.activeCanvasId);
     });
@@ -224,6 +229,7 @@ function CanvasPageInner() {
         setCanvasEdges([...canvasStore.getEdges()]);
         setCanvasFrames([...canvasStore.getFrames()]);
         setCanvasGenericNodes([...canvasStore.getGenericNodes()]);
+        setCanvasNoteNodes([...canvasStore.getNoteNodes()]);
         setActiveCanvasId(id);
         setLoading(false);
       });
@@ -313,8 +319,26 @@ function CanvasPageInner() {
       };
     });
 
+    const canvasNoteFlowNodes = canvasNoteNodes.map((nn) => {
+      const existing = nodeMap.get(nn.id);
+      return {
+        id: nn.id,
+        type: "canvasNote" as const,
+        position: existing
+          ? existing.position
+          : { x: nn.x, y: nn.y },
+        data: {
+          content: nn.content,
+          nodeId: nn.id,
+        } satisfies CanvasNoteNodeData,
+        style: { width: nn.width, height: nn.height },
+        selected: existing?.selected ?? false,
+        zIndex: nn.frameId ? 10 : 1,
+      };
+    });
+
     const pendingSelection = pendingSelectionRef.current;
-    const nextNodes = [...frameNodes, ...flowNodes, ...todoFlowNodes, ...genericFlowNodes].map((node) =>
+    const nextNodes = [...frameNodes, ...flowNodes, ...todoFlowNodes, ...genericFlowNodes, ...canvasNoteFlowNodes].map((node) =>
       pendingSelection
         ? { ...node, selected: pendingSelection.has(node.id) }
         : node,
@@ -331,7 +355,7 @@ function CanvasPageInner() {
     }));
     setRfEdges(flowEdges);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasNodes, canvasTodoNodes, canvasEdges, canvasFrames, canvasGenericNodes, notes, router, todos]);
+  }, [canvasNodes, canvasTodoNodes, canvasEdges, canvasFrames, canvasGenericNodes, canvasNoteNodes, notes, router, todos]);
 
   useEffect(() => {
     const pendingSelection = pendingSelectionRef.current;
@@ -352,15 +376,17 @@ function CanvasPageInner() {
         const noteChildren = canvasNodes.filter((n) => n.frameId === node.id);
         const todoChildren = canvasTodoNodes.filter((n) => n.frameId === node.id);
         const genericChildren = canvasGenericNodes.filter((n) => n.frameId === node.id);
+        const canvasNoteChildren = canvasNoteNodes.filter((n) => n.frameId === node.id);
         const frameChildren: Array<{
           nodeId: string;
-          nodeType: "note" | "todo" | "generic";
+          nodeType: "note" | "todo" | "generic" | "canvasNote";
           x: number;
           y: number;
         }> = [
           ...noteChildren.map((c) => ({ nodeId: c.noteId, nodeType: "note" as const, x: c.x, y: c.y })),
           ...todoChildren.map((c) => ({ nodeId: todoFlowId(c.todoId), nodeType: "todo" as const, x: c.x, y: c.y })),
           ...genericChildren.map((c) => ({ nodeId: c.id, nodeType: "generic" as const, x: c.x, y: c.y })),
+          ...canvasNoteChildren.map((c) => ({ nodeId: c.id, nodeType: "canvasNote" as const, x: c.x, y: c.y })),
         ];
         frameChildrenRef.current.set(
           node.id,
@@ -368,7 +394,7 @@ function CanvasPageInner() {
         );
       }
     },
-    [canvasNodes, canvasTodoNodes, canvasGenericNodes],
+    [canvasNodes, canvasTodoNodes, canvasGenericNodes, canvasNoteNodes],
   );
 
   const onNodeDrag = useCallback(
@@ -427,6 +453,18 @@ function CanvasPageInner() {
                         child.y + dy,
                       );
                     }
+                    case "canvasNote": {
+                      const noteNode = canvasNoteNodes.find((cnote) => cnote.id === child.nodeId);
+                      if (!noteNode) return Promise.resolve();
+                      return canvasStore.upsertNoteNode(
+                        child.nodeId,
+                        noteNode.content,
+                        child.x + dx,
+                        child.y + dy,
+                        noteNode.width,
+                        noteNode.height,
+                      );
+                    }
                   }
                 }),
               );
@@ -456,6 +494,18 @@ function CanvasPageInner() {
         );
         return;
       }
+      if (node.type === "canvasNote") {
+        const nn = canvasNoteNodes.find((n) => n.id === node.id);
+        await canvasStore.upsertNoteNode(
+          node.id,
+          nn?.content ?? "",
+          node.position.x,
+          node.position.y,
+          nn?.width,
+          nn?.height,
+        );
+        return;
+      }
       if (node.type === "todo") {
         const todoId = todoIdFromFlowId(node.id);
         if (todoId) {
@@ -465,7 +515,7 @@ function CanvasPageInner() {
       }
       await canvasStore.upsertNode(node.id, node.position.x, node.position.y);
     },
-    [canvasFrames, canvasGenericNodes],
+    [canvasFrames, canvasGenericNodes, canvasNoteNodes],
   );
 
   const onConnect = useCallback(
@@ -516,6 +566,8 @@ function CanvasPageInner() {
         canvasStore.removeFrame(node.id);
       } else if (node.type === "generic") {
         canvasStore.removeGenericNode(node.id);
+      } else if (node.type === "canvasNote") {
+        canvasStore.removeNoteNode(node.id);
       } else if (node.type === "todo") {
         const todoId = todoIdFromFlowId(node.id);
         if (todoId) canvasStore.removeTodoNode(todoId);
@@ -547,6 +599,7 @@ function CanvasPageInner() {
       nodes: canvasNodes,
       todoNodes: canvasTodoNodes,
       genericNodes: canvasGenericNodes,
+      noteNodes: canvasNoteNodes,
       frames: canvasFrames,
       edges: canvasEdges,
       todosById: new Map(todos.map((todo) => [todo.id, todo])),
@@ -556,6 +609,7 @@ function CanvasPageInner() {
     canvasNodes,
     canvasTodoNodes,
     canvasGenericNodes,
+    canvasNoteNodes,
     canvasFrames,
     canvasEdges,
     todos,
@@ -641,6 +695,24 @@ function CanvasPageInner() {
             }
             break;
           }
+          case "canvasNote": {
+            const noteNode = await canvasStore.upsertNoteNode(
+              undefined,
+              item.content,
+              item.x,
+              item.y,
+              item.width,
+              item.height,
+            );
+            pastedFlowIds.add(noteNode.id);
+            const noteFrameId = item.frameId
+              ? frameIdMap.get(item.frameId)
+              : undefined;
+            if (noteFrameId) {
+              await canvasStore.setNoteNodeFrame(noteNode.id, noteFrameId);
+            }
+            break;
+          }
         }
       }
 
@@ -671,7 +743,7 @@ function CanvasPageInner() {
         if (selected?.type === "todo") {
           const todoId = todoIdFromFlowId(selected.id);
           if (todoId) router.push(`/todos/${todoId}`);
-        } else if (selected && selected.type !== "generic" && selected.type !== "frame") {
+        } else if (selected && selected.type !== "generic" && selected.type !== "canvasNote" && selected.type !== "frame") {
           router.push(`/notes/${selected.id}`);
         }
       }
@@ -735,6 +807,8 @@ function CanvasPageInner() {
     if (!contextMenu) return;
     if (contextMenu.nodeType === "generic") {
       canvasStore.removeGenericNode(contextMenu.nodeId);
+    } else if (contextMenu.nodeType === "canvasNote") {
+      canvasStore.removeNoteNode(contextMenu.nodeId);
     } else if (contextMenu.nodeType === "todo") {
       const todoId = todoIdFromFlowId(contextMenu.nodeId);
       if (todoId) canvasStore.removeTodoNode(todoId);
@@ -747,7 +821,7 @@ function CanvasPageInner() {
   function handleContextMenuGroupInFrame() {
     if (!contextMenu) return;
     const selectedNodes = rfNodes.filter(
-      (n) => n.selected && (n.type === "note" || n.type === "todo" || n.type === "generic"),
+      (n) => n.selected && (n.type === "note" || n.type === "todo" || n.type === "generic" || n.type === "canvasNote"),
     );
     const targetIds =
       selectedNodes.length > 0
@@ -788,6 +862,11 @@ function CanvasPageInner() {
           const gn = canvasGenericNodes.find((g) => g.id === noteId);
           if (gn) {
             canvasStore.setGenericNodeFrame(noteId, frame.id);
+            continue;
+          }
+          const cnn = canvasNoteNodes.find((n) => n.id === noteId);
+          if (cnn) {
+            canvasStore.setNoteNodeFrame(noteId, frame.id);
           }
         }
       }
@@ -798,6 +877,8 @@ function CanvasPageInner() {
     if (!contextMenu) return;
     if (contextMenu.nodeType === "generic") {
       canvasStore.setGenericNodeFrame(contextMenu.nodeId, null);
+    } else if (contextMenu.nodeType === "canvasNote") {
+      canvasStore.setNoteNodeFrame(contextMenu.nodeId, null);
     } else if (contextMenu.nodeType === "todo") {
       const todoId = todoIdFromFlowId(contextMenu.nodeId);
       if (todoId) canvasStore.setTodoNodeFrame(todoId, null);
@@ -841,6 +922,16 @@ function CanvasPageInner() {
   async function handleAddGenericNode() {
     const pos = getCascadePosition(getViewportCenter());
     await canvasStore.upsertGenericNode(
+      undefined,
+      "",
+      pos.x,
+      pos.y,
+    );
+  }
+
+  async function handleAddCanvasNote() {
+    const pos = getCascadePosition(getViewportCenter());
+    await canvasStore.upsertNoteNode(
       undefined,
       "",
       pos.x,
@@ -1022,7 +1113,7 @@ function CanvasPageInner() {
             </button>
           )}
           <span className="text-xs text-muted-foreground/50">
-            {canvasNodes.length + canvasTodoNodes.length + canvasGenericNodes.length} placed
+            {canvasNodes.length + canvasTodoNodes.length + canvasGenericNodes.length + canvasNoteNodes.length} placed
           </span>
           <span className="text-xs text-muted-foreground/40">|</span>
           <button
@@ -1032,6 +1123,14 @@ function CanvasPageInner() {
           >
             <FileText className="size-3" />
             Add Node
+          </button>
+          <button
+            type="button"
+            onClick={handleAddCanvasNote}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <StickyNote className="size-3" />
+            Add Note
           </button>
           <button
             type="button"
@@ -1128,7 +1227,7 @@ function CanvasPageInner() {
                     Delete frame
                   </button>
                 </>
-              ) : contextMenu.nodeType === "generic" ? (
+              ) : contextMenu.nodeType === "generic" || contextMenu.nodeType === "canvasNote" ? (
                 <>
                   <button
                     type="button"
@@ -1140,7 +1239,8 @@ function CanvasPageInner() {
                   </button>
                   {(() => {
                     const gn = canvasGenericNodes.find((n) => n.id === contextMenu.nodeId);
-                    return gn?.frameId ? (
+                    const cnn = canvasNoteNodes.find((n) => n.id === contextMenu.nodeId);
+                    return gn?.frameId || cnn?.frameId ? (
                       <button
                         type="button"
                         onClick={handleContextMenuRemoveFromFrame}
