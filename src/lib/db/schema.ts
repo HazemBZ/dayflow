@@ -203,6 +203,20 @@ export const canvasGenericNodes = sqliteTable("canvas_generic_nodes", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// ─── Canvas Note Nodes (resizable sticky notes) ──────────────────────────────
+export const canvasNoteNodes = sqliteTable("canvas_note_nodes", {
+  id: text("id").primaryKey(),
+  canvasId: text("canvas_id").notNull(),
+  content: text("content").notNull().default(""),
+  x: real("x").notNull().default(0),
+  y: real("y").notNull().default(0),
+  width: real("width").notNull().default(280),
+  height: real("height").notNull().default(200),
+  frameId: text("frame_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // ─── Canvas Edges ────────────────────────────────────────────────────────────
 export const canvasEdges = sqliteTable("canvas_edges", {
   id: text("id").primaryKey(),
