@@ -3,22 +3,27 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import {
   Handle,
+  NodeResizer,
   Position,
   type NodeProps,
   type Node,
+  type OnResizeEnd,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { canvasStore } from "@/lib/canvas-store";
 import { MarkdownContent } from "./markdown-content";
 
-export type GenericNodeData = {
+export type CanvasNoteNodeData = {
   content: string;
   nodeId: string;
 };
 
-export type GenericNodeType = Node<GenericNodeData, "generic">;
+export type CanvasNoteNodeType = Node<CanvasNoteNodeData, "canvasNote">;
 
-function GenericNodeComponent({ data, selected }: NodeProps<GenericNodeType>) {
+function CanvasNoteNodeComponent({
+  data,
+  selected,
+}: NodeProps<CanvasNoteNodeType>) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -49,7 +54,7 @@ function GenericNodeComponent({ data, selected }: NodeProps<GenericNodeType>) {
     setEditing(false);
     isDirtyRef.current = false;
     if (trimmed !== data.content) {
-      canvasStore.updateGenericNodeContent(data.nodeId, trimmed);
+      canvasStore.updateNoteNodeContent(data.nodeId, trimmed);
     }
   }, [editValue, data.content, data.nodeId]);
 
@@ -91,38 +96,63 @@ function GenericNodeComponent({ data, selected }: NodeProps<GenericNodeType>) {
     e.stopPropagation();
   }, []);
 
+  const handleResizeEnd: OnResizeEnd = useCallback(
+    (_, params) => {
+      canvasStore.upsertNoteNode(
+        data.nodeId,
+        data.content,
+        params.x,
+        params.y,
+        params.width,
+        params.height,
+      );
+    },
+    [data.nodeId, data.content],
+  );
+
   return (
     <div
       className={cn(
-        "min-w-[160px] max-w-[220px] rounded-xl border bg-card px-3 py-2.5 shadow-sm transition-shadow",
+        "h-full w-full rounded-lg border bg-amber-50/90 shadow-sm transition-shadow dark:bg-amber-950/60",
+        "border-amber-300/60",
         selected && "shadow-md ring-2 ring-primary",
       )}
       onDoubleClick={startEditing}
     >
+      <NodeResizer
+        minWidth={200}
+        minHeight={120}
+        isVisible={selected}
+        onResizeEnd={handleResizeEnd}
+        handleClassName="!size-2.5 !border-2 !border-background !bg-primary !shadow-sm !rounded-full"
+        lineClassName="!border border-primary/60"
+      />
       <Handle
         type="target"
         position={Position.Top}
         className="!size-2 !border-2 !border-primary !bg-background"
       />
-      {editing ? (
-        <textarea
-          ref={textareaRef}
-          value={editValue}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          onMouseDown={handleEditorMouseDown}
-          className="w-full bg-transparent text-sm leading-snug outline-none resize-none"
-          rows={Math.max(1, editValue.split("\n").length)}
-          aria-label="Edit node content"
-        />
-      ) : data.content ? (
-        <MarkdownContent content={data.content} />
-      ) : (
-        <div className="text-sm leading-snug text-muted-foreground/50 italic">
-          Untitled
-        </div>
-      )}
+      <div className="h-full w-full overflow-y-auto px-3 py-2.5">
+        {editing ? (
+          <textarea
+            ref={textareaRef}
+            value={editValue}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            onMouseDown={handleEditorMouseDown}
+            className="w-full bg-transparent text-sm leading-snug outline-none resize-none"
+            rows={Math.max(1, editValue.split("\n").length)}
+            aria-label="Edit note content"
+          />
+        ) : data.content ? (
+          <MarkdownContent content={data.content} />
+        ) : (
+          <div className="text-sm leading-snug text-muted-foreground/50 italic">
+            Untitled
+          </div>
+        )}
+      </div>
       <Handle
         type="source"
         position={Position.Bottom}
@@ -132,4 +162,4 @@ function GenericNodeComponent({ data, selected }: NodeProps<GenericNodeType>) {
   );
 }
 
-export const GenericNode = memo(GenericNodeComponent);
+export const CanvasNoteNode = memo(CanvasNoteNodeComponent);
