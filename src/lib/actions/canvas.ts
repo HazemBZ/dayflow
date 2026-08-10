@@ -3,7 +3,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { canvases, canvasNodes, canvasTodoNodes, canvasEdges, canvasFrames, canvasGenericNodes } from "@/lib/db/schema";
+import { canvases, canvasNodes, canvasTodoNodes, canvasEdges, canvasFrames, canvasGenericNodes, canvasNoteNodes } from "@/lib/db/schema";
 
 // ─── Canvas ──────────────────────────────────────────────────────────────────
 
@@ -313,6 +313,10 @@ export async function removeCanvasFrame(canvasId: string, id: string) {
     .set({ frameId: null })
     .where(and(eq(canvasGenericNodes.canvasId, canvasId), eq(canvasGenericNodes.frameId, id)));
   await db
+    .update(canvasNoteNodes)
+    .set({ frameId: null })
+    .where(and(eq(canvasNoteNodes.canvasId, canvasId), eq(canvasNoteNodes.frameId, id)));
+  await db
     .delete(canvasFrames)
     .where(and(eq(canvasFrames.canvasId, canvasId), eq(canvasFrames.id, id)));
 }
@@ -425,6 +429,95 @@ export async function setGenericNodeFrame(
     .update(canvasGenericNodes)
     .set({ frameId, updatedAt: Date.now() })
     .where(eq(canvasGenericNodes.id, id));
+}
+
+// ─── Canvas Note Nodes ─────────────────────────────────────────────────────
+
+export type CanvasNoteNodeRow = {
+  id: string;
+  canvasId: string;
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  frameId: string | null;
+};
+
+export async function getCanvasNoteNodes(canvasId: string): Promise<CanvasNoteNodeRow[]> {
+  const rows = await db
+    .select()
+    .from(canvasNoteNodes)
+    .where(eq(canvasNoteNodes.canvasId, canvasId))
+    .orderBy(canvasNoteNodes.createdAt);
+  return rows.map((r) => ({
+    id: r.id,
+    canvasId: r.canvasId,
+    content: r.content,
+    x: r.x,
+    y: r.y,
+    width: r.width,
+    height: r.height,
+    frameId: r.frameId ?? null,
+  }));
+}
+
+export async function upsertCanvasNoteNode(
+  canvasId: string,
+  id: string | undefined,
+  content: string,
+  x: number,
+  y: number,
+  width = 280,
+  height = 200,
+): Promise<CanvasNoteNodeRow> {
+  const now = Date.now();
+  const nodeId = id ?? `note_${now}_${Math.random().toString(36).slice(2, 8)}`;
+  const existing = await db
+    .select({ frameId: canvasNoteNodes.frameId })
+    .from(canvasNoteNodes)
+    .where(eq(canvasNoteNodes.id, nodeId))
+    .limit(1);
+  const currentFrameId = existing.length > 0 ? existing[0].frameId : null;
+  await db
+    .insert(canvasNoteNodes)
+    .values({ id: nodeId, canvasId, content, x, y, width, height, frameId: currentFrameId, createdAt: now, updatedAt: now })
+    .onConflictDoUpdate({
+      target: canvasNoteNodes.id,
+      set: { content, x, y, width, height, updatedAt: now },
+    });
+  return { id: nodeId, canvasId, content, x, y, width, height, frameId: currentFrameId };
+}
+
+export async function updateCanvasNoteNodeContent(
+  id: string,
+  content: string,
+): Promise<void> {
+  await db
+    .update(canvasNoteNodes)
+    .set({ content, updatedAt: Date.now() })
+    .where(eq(canvasNoteNodes.id, id));
+}
+
+export async function removeCanvasNoteNode(canvasId: string, id: string) {
+  await db
+    .delete(canvasNoteNodes)
+    .where(
+      and(
+        eq(canvasNoteNodes.canvasId, canvasId),
+        eq(canvasNoteNodes.id, id),
+      ),
+    );
+}
+
+export async function setCanvasNoteNodeFrame(
+  id: string,
+  frameId: string | null,
+): Promise<void> {
+  await db
+    .update(canvasNoteNodes)
+    .set({ frameId, updatedAt: Date.now() })
+    .where(eq(canvasNoteNodes.id, id));
 }
 
 // ─── Canvas Edges ──────────────────────────────────────────────────────────

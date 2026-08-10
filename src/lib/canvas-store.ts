@@ -23,6 +23,11 @@ import {
   updateCanvasGenericNodeContent,
   removeCanvasGenericNode,
   setGenericNodeFrame,
+  getCanvasNoteNodes,
+  upsertCanvasNoteNode,
+  updateCanvasNoteNodeContent,
+  removeCanvasNoteNode,
+  setCanvasNoteNodeFrame,
   updateCanvasViewport,
   updateCanvasUIState,
   type CanvasRow,
@@ -31,9 +36,10 @@ import {
   type CanvasEdgeRow,
   type CanvasFrameRow,
   type CanvasGenericNodeRow,
+  type CanvasNoteNodeRow,
 } from "@/lib/actions/canvas";
 
-export type { CanvasRow, CanvasNodeRow, CanvasTodoNodeRow, CanvasEdgeRow, CanvasFrameRow, CanvasGenericNodeRow };
+export type { CanvasRow, CanvasNodeRow, CanvasTodoNodeRow, CanvasEdgeRow, CanvasFrameRow, CanvasGenericNodeRow, CanvasNoteNodeRow };
 
 type Listener = () => void;
 
@@ -43,6 +49,7 @@ let _todoNodes: CanvasTodoNodeRow[] = [];
 let _edges: CanvasEdgeRow[] = [];
 let _frames: CanvasFrameRow[] = [];
 let _genericNodes: CanvasGenericNodeRow[] = [];
+let _noteNodes: CanvasNoteNodeRow[] = [];
 let _activeCanvasId: string | null = null;
 const listeners = new Set<Listener>();
 
@@ -62,6 +69,8 @@ let _lastFramesKey = "";
 let _lastFramesSnapshot: readonly CanvasFrameRow[] = _emptyArr;
 let _lastGenericNodesKey = "";
 let _lastGenericNodesSnapshot: readonly CanvasGenericNodeRow[] = _emptyArr;
+let _lastNoteNodesKey = "";
+let _lastNoteNodesSnapshot: readonly CanvasNoteNodeRow[] = _emptyArr;
 
 function serializeCanvases(list: CanvasRow[]): string {
   return JSON.stringify(list.map((c) => [c.id, c.name]));
@@ -80,6 +89,9 @@ function serializeFrames(frames: CanvasFrameRow[]): string {
 }
 function serializeGenericNodes(nodes: CanvasGenericNodeRow[]): string {
   return JSON.stringify(nodes.map((n) => [n.id, n.content, n.x, n.y, n.frameId]));
+}
+function serializeNoteNodes(nodes: CanvasNoteNodeRow[]): string {
+  return JSON.stringify(nodes.map((n) => [n.id, n.content, n.x, n.y, n.width, n.height, n.frameId]));
 }
 
 function notify() {
@@ -109,18 +121,20 @@ export const canvasStore = {
     const targetId = canvasId ?? _canvases[0].id;
     _activeCanvasId = targetId;
 
-    const [nodes, todoNodes, edges, frames, genericNodes] = await Promise.all([
+    const [nodes, todoNodes, edges, frames, genericNodes, noteNodes] = await Promise.all([
       getCanvasNodes(targetId),
       getCanvasTodoNodes(targetId),
       getCanvasEdges(targetId),
       getCanvasFrames(targetId),
       getCanvasGenericNodes(targetId),
+      getCanvasNoteNodes(targetId),
     ]);
     _nodes = nodes;
     _todoNodes = todoNodes;
     _edges = edges;
     _frames = frames;
     _genericNodes = genericNodes;
+    _noteNodes = noteNodes;
 
     _loaded = true;
     _lastCanvasesKey = "";
@@ -129,6 +143,7 @@ export const canvasStore = {
     _lastEdgesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
+    _lastNoteNodesKey = "";
     notify();
   },
 
@@ -136,12 +151,13 @@ export const canvasStore = {
 
   async setActiveCanvas(canvasId: string): Promise<void> {
     if (canvasId === _activeCanvasId) return;
-    const [nodes, todoNodes, edges, frames, genericNodes] = await Promise.all([
+    const [nodes, todoNodes, edges, frames, genericNodes, noteNodes] = await Promise.all([
       getCanvasNodes(canvasId),
       getCanvasTodoNodes(canvasId),
       getCanvasEdges(canvasId),
       getCanvasFrames(canvasId),
       getCanvasGenericNodes(canvasId),
+      getCanvasNoteNodes(canvasId),
     ]);
     _activeCanvasId = canvasId;
     _nodes = nodes;
@@ -149,11 +165,13 @@ export const canvasStore = {
     _edges = edges;
     _frames = frames;
     _genericNodes = genericNodes;
+    _noteNodes = noteNodes;
     _lastNodesKey = "";
     _lastTodoNodesKey = "";
     _lastEdgesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
+    _lastNoteNodesKey = "";
     notify();
   },
 
@@ -351,10 +369,16 @@ export const canvasStore = {
         (gn as CanvasGenericNodeRow & { frameId: string | null }).frameId = null;
       }
     }
+    for (const nn of _noteNodes) {
+      if (nn.frameId === id) {
+        (nn as CanvasNoteNodeRow & { frameId: string | null }).frameId = null;
+      }
+    }
     _lastNodesKey = "";
     _lastTodoNodesKey = "";
     _lastFramesKey = "";
     _lastGenericNodesKey = "";
+    _lastNoteNodesKey = "";
     notify();
   },
 
@@ -433,6 +457,62 @@ export const canvasStore = {
     notify();
   },
 
+  // ── Active-canvas note node operations ─────────────────────────────
+
+  getNoteNodes(): readonly CanvasNoteNodeRow[] {
+    return _noteNodes;
+  },
+
+  async upsertNoteNode(
+    id: string | undefined,
+    content: string,
+    x: number,
+    y: number,
+    width = 280,
+    height = 200,
+  ): Promise<CanvasNoteNodeRow> {
+    if (!_activeCanvasId) throw new Error("No active canvas");
+    const node = await upsertCanvasNoteNode(_activeCanvasId, id, content, x, y, width, height);
+    const idx = _noteNodes.findIndex((n) => n.id === node.id);
+    if (idx >= 0) {
+      _noteNodes[idx] = node;
+    } else {
+      _noteNodes.push(node);
+    }
+    _lastNoteNodesKey = "";
+    notify();
+    return node;
+  },
+
+  async updateNoteNodeContent(id: string, content: string) {
+    await updateCanvasNoteNodeContent(id, content);
+    const node = _noteNodes.find((n) => n.id === id);
+    if (node) {
+      (node as CanvasNoteNodeRow & { content: string }).content = content;
+    }
+    _lastNoteNodesKey = "";
+    notify();
+  },
+
+  async removeNoteNode(id: string) {
+    if (!_activeCanvasId) return;
+    await removeCanvasNoteNode(_activeCanvasId, id);
+    _noteNodes = _noteNodes.filter((n) => n.id !== id);
+    _lastNoteNodesKey = "";
+    notify();
+  },
+
+  async setNoteNodeFrame(id: string, frameId: string | null) {
+    if (!_activeCanvasId) return;
+    await setCanvasNoteNodeFrame(id, frameId);
+    const node = _noteNodes.find((n) => n.id === id);
+    if (node) {
+      (node as CanvasNoteNodeRow & { frameId: string | null }).frameId = frameId;
+    }
+    _lastNoteNodesKey = "";
+    notify();
+  },
+
   // ── Subscription ───────────────────────────────────────────────────
 
   subscribe(listener: Listener) {
@@ -496,6 +576,15 @@ export const canvasStore = {
       _lastGenericNodesKey = key;
     }
     return _lastGenericNodesSnapshot;
+  },
+
+  getNoteNodesSnapshot(): readonly CanvasNoteNodeRow[] {
+    const key = serializeNoteNodes(_noteNodes);
+    if (key !== _lastNoteNodesKey) {
+      _lastNoteNodesSnapshot = Object.freeze([..._noteNodes]);
+      _lastNoteNodesKey = key;
+    }
+    return _lastNoteNodesSnapshot;
   },
 
   getServerSnapshot(): [] {
