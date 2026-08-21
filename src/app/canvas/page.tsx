@@ -153,6 +153,13 @@ function CanvasPageInner() {
     [getCascadePosition, getViewportCenter],
   );
 
+  const handleRemoveTodo = useCallback(
+    async (todo: TodoDto): Promise<void> => {
+      await canvasStore.removeTodoNode(todo.id);
+    },
+    [],
+  );
+
   const {
     todos,
     projects,
@@ -1122,7 +1129,7 @@ function CanvasPageInner() {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <FileText className="size-3" />
-            Add Node
+            N
           </button>
           <button
             type="button"
@@ -1130,7 +1137,7 @@ function CanvasPageInner() {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <StickyNote className="size-3" />
-            Add Note
+            T
           </button>
           <button
             type="button"
@@ -1138,7 +1145,7 @@ function CanvasPageInner() {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <FolderOpen className="size-3" />
-            Create Frame
+            F
           </button>
         </div>
 
@@ -1149,6 +1156,7 @@ function CanvasPageInner() {
           projectsLoading={projectsLoading}
           error={todoError}
           onAddTodo={handleAddTodo}
+          onRemoveTodo={handleRemoveTodo}
           onCreateTodo={createAndPlaceTodo}
         >
           <Popover>
@@ -1158,7 +1166,7 @@ function CanvasPageInner() {
               }
             >
               <Plus className="mr-1 size-3.5" />
-              Add Notes
+              Note
             </PopoverTrigger>
             <PopoverContent align="end" className="w-56 p-1.5">
               {unplacedNotes.length === 0 ? (

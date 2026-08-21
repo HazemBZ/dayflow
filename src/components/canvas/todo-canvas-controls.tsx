@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ExternalLink, ListTodo, Plus } from "lucide-react";
+import { useState, type MouseEvent, type ReactNode } from "react";
+import { ListTodo, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ type TodoCanvasControlsProps = {
   readonly projectsLoading: boolean;
   readonly error: string | null;
   readonly onAddTodo: (todo: TodoDto) => Promise<void>;
+  readonly onRemoveTodo: (todo: TodoDto) => Promise<void>;
   readonly onCreateTodo: (input: CreateTodoInput) => Promise<boolean>;
   readonly children: ReactNode;
 };
@@ -60,6 +61,7 @@ export function TodoCanvasControls({
   projectsLoading,
   error,
   onAddTodo,
+  onRemoveTodo,
   onCreateTodo,
   children,
 }: TodoCanvasControlsProps) {
@@ -69,7 +71,15 @@ export function TodoCanvasControls({
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const placedIds = new Set(placedTodoIds);
-  const unplacedTodos = todos.filter((todo) => !placedIds.has(todo.id));
+
+  function handleTodoClick(todo: TodoDto, event: MouseEvent<HTMLButtonElement>): void {
+    const placed = placedIds.has(todo.id);
+    if (event.shiftKey) {
+      if (placed) void onRemoveTodo(todo);
+    } else if (!placed) {
+      void onAddTodo(todo);
+    }
+  }
 
   async function handleCreate(): Promise<void> {
     const text = draft.trim();
@@ -103,43 +113,59 @@ export function TodoCanvasControls({
         </div>
       )}
 
-      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+      <div className="absolute right-4 top-4 z-10 flex flex-col items-stretch gap-2">
         <Popover>
           <PopoverTrigger render={<Button size="sm" className="shadow-sm" />}>
             <ListTodo className="mr-1 size-3.5" />
-            Add Todos
+            Todo
           </PopoverTrigger>
           <PopoverContent align="end" className="w-64 p-1.5">
-            {unplacedTodos.length === 0 ? (
+            {todos.length === 0 ? (
               <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                All todos on canvas
+                No todos yet
               </p>
             ) : (
               <div className="max-h-60 overflow-y-auto">
-                {unplacedTodos.map((todo) => (
-                  <button
-                    key={todo.id}
-                    type="button"
-                    onClick={() => void onAddTodo(todo)}
-                    className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted"
-                  >
-                    <ListTodo className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 font-medium text-foreground">{todo.text}</p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {todo.status.replace("_", " ")} · {SEVERITY_LABELS[todo.severity]}
-                      </p>
-                    </div>
-                    <ExternalLink className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                  </button>
-                ))}
+                {todos.map((todo) => {
+                  const placed = placedIds.has(todo.id);
+                  return (
+                    <button
+                      key={todo.id}
+                      type="button"
+                      onClick={(event) => handleTodoClick(todo, event)}
+                      title={
+                        placed
+                          ? "Shift+click to remove from canvas"
+                          : "Click to place on canvas"
+                      }
+                      className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted"
+                    >
+                      <ListTodo className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 font-medium text-foreground">{todo.text}</p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          {todo.status.replace("_", " ")} · {SEVERITY_LABELS[todo.severity]}
+                          {placed && " · on canvas"}
+                        </p>
+                      </div>
+                      {placed ? (
+                        <Trash2 className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <Plus className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
+            <p className="px-2 pt-1.5 text-[10px] text-muted-foreground">
+              Click to place · Shift+click to remove
+            </p>
           </PopoverContent>
         </Popover>
         <Button size="sm" variant="outline" className="shadow-sm" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3.5" />
-          New Todo
+          Todo
         </Button>
         {children}
       </div>
