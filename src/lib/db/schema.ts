@@ -279,6 +279,19 @@ export const outcomeSubtasks = sqliteTable("outcome_subtasks", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
 
+// ─── Daily Items (Chores & Extras) ─────────────────────────────────────────
+export const dailyItems = sqliteTable("daily_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  kind: text("kind", { enum: ["chore", "extra"] }).notNull(),
+  text: text("text").notNull(),
+  completed: integer("completed", { mode: "boolean" }).default(false),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
+export type DailyItemKind = "chore" | "extra";
+
 // ─── Showcase Project Milestones ────────────────────────────────────────────
 export const showcaseMilestones = sqliteTable("showcase_milestones", {
   id: integer("id").primaryKey({ autoIncrement: true }),

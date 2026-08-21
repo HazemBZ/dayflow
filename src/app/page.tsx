@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, useSyncExternalStore, startTransition } from "react";
 import { format, addDays, isToday, startOfDay, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Header } from "@/components/dashboard/header";
 import { PageScroll } from "@/components/ui/page-scroll";
 import { TopOutcomes } from "@/components/dashboard/top-outcomes";
+import { ChoresExtrasList } from "@/components/dashboard/chores-extras-list";
 import { DeepWorkBlock } from "@/components/dashboard/deep-work-block";
 import { EveningBlock } from "@/components/dashboard/evening-block";
 import { ProtectionGate } from "@/components/dashboard/protection-gate";
@@ -27,6 +29,7 @@ import {
 } from "@/lib/actions/deep-work";
 import { reorderOutcomes } from "@/lib/actions/daily";
 import { viewModeStore } from "@/lib/view-mode-store";
+import { dailyItemsStore } from "@/lib/daily-items-store";
 
 interface DailyLog {
   id?: number;
@@ -270,41 +273,71 @@ export default function DashboardPage() {
     >
       <Separator />
 
-      <TopOutcomes
-        date={dateStr}
-        outcomes={[
-          outcomes[0].clean,
-          outcomes[1].clean,
-          outcomes[2].clean,
-        ]}
-        completed={[
-          outcomes[0].completed,
-          outcomes[1].completed,
-          outcomes[2].completed,
-        ]}
-        onSave={handleOutcomeSave}
-        onToggle={handleOutcomeToggle}
-        onReorder={handleOutcomeReorder}
-        viewMode={viewMode}
-      />
+      <Tabs defaultValue="outcomes">
+        <TabsList>
+          <TabsTrigger value="outcomes">Outcomes</TabsTrigger>
+          <TabsTrigger
+            value="chores"
+            onMouseEnter={() => void dailyItemsStore.load(dateStr, "chore")}
+            onFocus={() => void dailyItemsStore.load(dateStr, "chore")}
+          >
+            Chores
+          </TabsTrigger>
+          <TabsTrigger
+            value="extras"
+            onMouseEnter={() => void dailyItemsStore.load(dateStr, "extra")}
+            onFocus={() => void dailyItemsStore.load(dateStr, "extra")}
+          >
+            Extras
+          </TabsTrigger>
+        </TabsList>
 
-      <DeepWorkBlock
-        activities={activities}
-        sessions={skillSessions}
-        onLogSession={handleLogSession}
-        onAddActivity={handleAddActivity}
-        viewMode={viewMode}
-      />
+        <TabsContent value="outcomes" className="space-y-6">
+          <TopOutcomes
+            date={dateStr}
+            outcomes={[
+              outcomes[0].clean,
+              outcomes[1].clean,
+              outcomes[2].clean,
+            ]}
+            completed={[
+              outcomes[0].completed,
+              outcomes[1].completed,
+              outcomes[2].completed,
+            ]}
+            onSave={handleOutcomeSave}
+            onToggle={handleOutcomeToggle}
+            onReorder={handleOutcomeReorder}
+            viewMode={viewMode}
+          />
 
-      {viewMode === "full" && (
-        <EveningBlock
-          initialValue={dailyLog?.eveningTaskType ?? null}
-          initialCompleted={dailyLog?.eveningCompleted === true}
-          onSave={handleEveningSave}
-        />
-      )}
+          <DeepWorkBlock
+            activities={activities}
+            sessions={skillSessions}
+            onLogSession={handleLogSession}
+            onAddActivity={handleAddActivity}
+            viewMode={viewMode}
+          />
 
-      {viewMode === "full" && <ProtectionGate onLog={handleProtectionLog} />}
+          {viewMode === "full" && (
+            <EveningBlock
+              initialValue={dailyLog?.eveningTaskType ?? null}
+              initialCompleted={dailyLog?.eveningCompleted === true}
+              onSave={handleEveningSave}
+            />
+          )}
+
+          {viewMode === "full" && <ProtectionGate onLog={handleProtectionLog} />}
+        </TabsContent>
+
+        <TabsContent value="chores">
+          <ChoresExtrasList date={dateStr} kind="chore" />
+        </TabsContent>
+
+        <TabsContent value="extras">
+          <ChoresExtrasList date={dateStr} kind="extra" />
+        </TabsContent>
+      </Tabs>
 
       <TimeSummary timeLogs={timeLogs} />
     </PageScroll>

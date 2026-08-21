@@ -273,3 +273,21 @@ roadmap:
         status: completed
         started: 2026-08-03
         completed: 2026-08-03
+  - phase: P12 - Dashboard Tabs
+    status: completed
+    started: 2026-08-17
+    completed: 2026-08-17
+    milestones:
+      - name: Tabbed dashboard (Outcomes / Chores / Extras)
+        status: completed
+    tasks:
+      - name: Add daily_items table (chore|extra kind) + migration
+        status: completed
+      - name: Add daily item CRUD server actions
+        status: completed
+      - name: Build inline chores/extras list component
+        status: completed
+      - name: Wire Tabs into dashboard, keep deep work below tabs
+        status: completed
+      - name: Lint + typecheck verification passes
+        status: completed

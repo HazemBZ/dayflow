@@ -134,6 +134,13 @@
       "when": 1786357685924,
       "tag": "0018_curly_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1786922943555,
+      "tag": "0019_typical_forge",
+      "breakpoints": true
     }
   ]
 }

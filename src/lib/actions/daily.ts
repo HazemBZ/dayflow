@@ -2,7 +2,7 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { dailyLogs, skillSessions, protectionLogs, outcomeSubtasks } from "@/lib/db/schema";
+import { dailyLogs, skillSessions, protectionLogs, outcomeSubtasks, dailyItems, type DailyItemKind } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 
 // ─── Daily Log ────────────────────────────────────────────────────────────
@@ -208,6 +208,60 @@ export async function updateOutcomeSubtask(
 
 export async function deleteOutcomeSubtask(id: number) {
   await db.delete(outcomeSubtasks).where(eq(outcomeSubtasks.id, id));
+  revalidatePath("/");
+  return { success: true };
+}
+
+// ─── Daily Items (Chores & Extras) ────────────────────────────────────────
+
+export async function getDailyItems(date: string, kind: DailyItemKind) {
+  return await db
+    .select()
+    .from(dailyItems)
+    .where(and(eq(dailyItems.date, date), eq(dailyItems.kind, kind)))
+    .orderBy(dailyItems.sortOrder);
+}
+
+export async function createDailyItem(params: {
+  date: string;
+  kind: DailyItemKind;
+  text: string;
+}) {
+  const existing = await db
+    .select({ maxSort: dailyItems.sortOrder })
+    .from(dailyItems)
+    .where(
+      and(
+        eq(dailyItems.date, params.date),
+        eq(dailyItems.kind, params.kind),
+      ),
+    )
+    .orderBy(dailyItems.sortOrder)
+    .limit(1);
+
+  const nextSort = (existing[0]?.maxSort ?? -1) + 1;
+
+  await db.insert(dailyItems).values({
+    date: params.date,
+    kind: params.kind,
+    text: params.text,
+    sortOrder: nextSort,
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateDailyItem(
+  id: number,
+  data: { text?: string; completed?: boolean },
+) {
+  await db.update(dailyItems).set(data).where(eq(dailyItems.id, id));
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deleteDailyItem(id: number) {
+  await db.delete(dailyItems).where(eq(dailyItems.id, id));
   revalidatePath("/");
   return { success: true };
 }
